@@ -1,67 +1,154 @@
 export const dynamic = "force-dynamic";
 
 import AppShell from "@/components/AppShell";
-import { requireRoles, money } from "@/lib/auth-helpers";
+import InventoryTable from "@/components/InventoryTable";
+import { requireRoles } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { Decimal } from "@prisma/client/runtime/library";
+import type { UserStatus } from "@prisma/client";
 
 export default async function InventoryPage() {
-  await requireRoles(["admin", "manager", "auditor", "kitchen"]);
-  const items = await prisma.inventory.findMany({
-    orderBy: { name: "asc" },
-    include: { supplier: true },
-  });
+  const user = await requireRoles(["admin", "manager", "auditor", "kitchen"]);
+  const cafeId = user.cafeId;
+  const canManage = user.role === "admin" || user.role === "manager";
+
+  const [items, suppliers] = await Promise.all([
+    prisma.inventory.findMany({
+      where: { cafeId },
+      orderBy: { name: "asc" },
+      include: { supplier: true },
+    }),
+    prisma.supplier.findMany({
+      where: { cafeId, status: "active" },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   async function addItem(formData: FormData) {
     "use server";
-    await requireRoles(["admin", "manager"]);
+    const u = await requireRoles(["admin", "manager"]);
+    const name = String(formData.get("name") || "").trim();
+    if (!name) return;
     await prisma.inventory.create({
       data: {
-        name: String(formData.get("name") || "").trim(),
-        unit: String(formData.get("unit") || "unit"),
-        currentQty: Number(formData.get("qty") || 0),
-        minThreshold: Number(formData.get("min") || 0),
-        unitCost: Number(formData.get("cost") || 0),
+        cafeId: u.cafeId,
+        name,
+        unit: String(formData.get("unit") || "unit").trim() || "unit",
+        currentQty: new Decimal(Number(formData.get("qty") || 0)),
+        minThreshold: new Decimal(Number(formData.get("min") || 1)),
+        unitCost: new Decimal(Number(formData.get("cost") || 0)),
+        supplierId: Number(formData.get("supplierId") || 0) || null,
       },
     });
     revalidatePath("/inventory");
   }
 
+  async function updateItem(formData: FormData) {
+    "use server";
+    const u = await requireRoles(["admin", "manager"]);
+    const id = Number(formData.get("id"));
+    if (!id) return;
+    const status = String(formData.get("status") || "active") as UserStatus;
+    await prisma.inventory.updateMany({
+      where: { id, cafeId: u.cafeId },
+      data: {
+        name: String(formData.get("name") || "").trim(),
+        unit: String(formData.get("unit") || "unit").trim() || "unit",
+        currentQty: new Decimal(Number(formData.get("qty") || 0)),
+        minThreshold: new Decimal(Number(formData.get("min") || 0)),
+        unitCost: new Decimal(Number(formData.get("cost") || 0)),
+        supplierId: Number(formData.get("supplierId") || 0) || null,
+        status: status === "inactive" ? "inactive" : "active",
+      },
+    });
+    revalidatePath("/inventory");
+  }
+
+  const rows = items.map((i) => {
+    const qty = Number(i.currentQty);
+    const min = Number(i.minThreshold);
+    return {
+      id: i.id,
+      name: i.name,
+      unit: i.unit,
+      qty,
+      min,
+      cost: Number(i.unitCost),
+      supplierId: i.supplierId,
+      supplierName: i.supplier?.name ?? null,
+      status: i.status,
+      low: qty <= min,
+    };
+  });
+
   return (
-    <AppShell title="Inventory">
-      <form action={addItem} className="mb-6 grid gap-2 rounded-xl border border-[#3d352c] bg-[#1a1714] p-4 sm:grid-cols-5">
-        <input name="name" placeholder="Item name" required className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="unit" placeholder="Unit" defaultValue="kg" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="qty" type="number" step="0.01" placeholder="Qty" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="min" type="number" step="0.01" placeholder="Min" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <button className="rounded bg-[#e8954a] px-3 py-2 text-sm font-medium text-[#12100e]">Add item</button>
-      </form>
-      <div className="overflow-x-auto rounded-xl border border-[#3d352c]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#1a1714] text-[#a89f94]">
-            <tr>
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2">Qty</th>
-              <th className="px-3 py-2">Min</th>
-              <th className="px-3 py-2">Unit cost</th>
-              <th className="px-3 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((i) => {
-              const low = Number(i.currentQty) <= Number(i.minThreshold);
-              return (
-                <tr key={i.id} className="border-t border-[#3d352c]">
-                  <td className="px-3 py-2">{i.name} <span className="text-[#a89f94]">({i.unit})</span></td>
-                  <td className={`px-3 py-2 ${low ? "text-red-300" : ""}`}>{Number(i.currentQty).toFixed(2)}</td>
-                  <td className="px-3 py-2">{Number(i.minThreshold).toFixed(2)}</td>
-                  <td className="px-3 py-2">{money(i.unitCost)}</td>
-                  <td className="px-3 py-2">{low ? "Low stock" : "OK"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <AppShell
+      title="Inventory"
+      eyebrow="Stock"
+      lead="Track on-hand quantities, unit cost, and reorder thresholds."
+    >
+      {canManage && (
+        <div className="glass-panel" style={{ marginBottom: "0.85rem" }}>
+          <div className="panel-head">
+            <h3>Register New Item</h3>
+          </div>
+          <div className="panel-body">
+            <form action={addItem} className="form-row cols-4">
+              <input name="name" placeholder="Item name" required className="cas-input" />
+              <input name="unit" placeholder="Unit" defaultValue="kg" required className="cas-input" />
+              <input
+                name="qty"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Qty"
+                required
+                className="cas-input"
+              />
+              <input
+                name="min"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="Min"
+                required
+                className="cas-input"
+              />
+              <input
+                name="cost"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Unit cost ETB"
+                defaultValue={0}
+                className="cas-input"
+              />
+              <select name="supplierId" className="cas-select" defaultValue="">
+                <option value="">Supplier</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <button className="cas-btn cas-btn-primary">Add</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="glass-panel">
+        <div className="panel-head">
+          <h3>Stock list</h3>
+          <span className="badge">{items.length} items</span>
+        </div>
+        <InventoryTable
+          items={rows}
+          suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
+          canManage={canManage}
+          updateItem={updateItem}
+        />
       </div>
     </AppShell>
   );

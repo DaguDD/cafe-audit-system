@@ -54,3 +54,7 @@ web/skills-lock.json
 
 web/.claude/
 web/.windsurf/
+
+# Vercel CLI local link
+.vercel/
+web/.vercel/
