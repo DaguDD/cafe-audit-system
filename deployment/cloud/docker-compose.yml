@@ -1,0 +1,41 @@
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: deployment/cloud/Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    environment:
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      V2_DB_HOST: db
+      V2_DB_PORT: ${V2_DB_PORT:-3306}
+      V2_DB_NAME: ${V2_DB_NAME:-restaurant_v2}
+      V2_DB_USER: ${V2_DB_USER:-restaurant_user}
+      V2_DB_PASS: ${V2_DB_PASS:-restaurant_v2_pass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../../V2/storage/uploads:/var/www/html/storage/uploads
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${V2_DB_NAME:-restaurant_v2}
+      MYSQL_USER: ${V2_DB_USER:-restaurant_user}
+      MYSQL_PASSWORD: ${V2_DB_PASS:-restaurant_v2_pass}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  db_data:

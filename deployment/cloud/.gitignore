@@ -1,0 +1,4 @@
+# Local Docker secrets and runtime data
+.env
+.env.local
+db_data/

@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Composer (if added later)
+/vendor/
+
+# Uploaded payment screenshots — keep directory structure only
+/storage/uploads/**
+!/storage/uploads/payments/
+!/storage/uploads/payments/.gitkeep
+
+# Python tooling (repo root scripts)
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

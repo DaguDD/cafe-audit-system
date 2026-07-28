@@ -1,0 +1,41 @@
+# Render Blueprint — Cafe Audit System (V2)
+# Apply via Render Dashboard: New → Blueprint → connect repo.
+# Set APP_URL manually after the first deploy to your *.onrender.com URL.
+
+services:
+  - type: web
+    name: cafe-audit-web
+    runtime: docker
+    dockerfilePath: ./deployment/cloud/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /login
+    envVars:
+      - key: APP_URL
+        sync: false
+      - key: V2_DB_HOST
+        fromDatabase:
+          name: cafe-audit-mysql
+          property: host
+      - key: V2_DB_PORT
+        fromDatabase:
+          name: cafe-audit-mysql
+          property: port
+      - key: V2_DB_NAME
+        fromDatabase:
+          name: cafe-audit-mysql
+          property: database
+      - key: V2_DB_USER
+        fromDatabase:
+          name: cafe-audit-mysql
+          property: user
+      - key: V2_DB_PASS
+        fromDatabase:
+          name: cafe-audit-mysql
+          property: password
+
+databases:
+  - name: cafe-audit-mysql
+    plan: free
+    databaseName: restaurant_v2
+    user: restaurant_user

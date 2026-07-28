@@ -1,0 +1,43 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# Secrets & local env
+.env
+.env.*
+!.env.example
+deployment/cloud/.env
+deployment/cloud/.env.local
+
+# PHP / uploads (keep folder via .gitkeep)
+V2/storage/uploads/payments/*
+!V2/storage/uploads/payments/.gitkeep
+**/storage/uploads/payments/*.jpg
+**/storage/uploads/payments/*.jpeg
+**/storage/uploads/payments/*.png
+**/storage/uploads/payments/*.webp
+
+# Dependencies / junk
+.venv/
+venv/
+__pycache__/
+*.pyc
+node_modules/
+vendor/
+
+# Thesis / Word / local clutter
+*.docx
+*.doc
+*.pdf
+Shareable.zip
+
+# Docker runtime
+deployment/cloud/db_data/
+
+# Logs
+*.log
+apache/logs/
