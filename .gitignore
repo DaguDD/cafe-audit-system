@@ -51,3 +51,6 @@ web/.env*.local
 web/src/generated/
 web/.agents/
 web/skills-lock.json
+
+web/.claude/
+web/.windsurf/
