@@ -8,8 +8,12 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const path = request.nextUrl.pathname;
+      const isPlatformLogin = path === "/platform/login";
       const isPlatform = path.startsWith("/platform");
       const role = auth?.user?.role as Role | undefined;
+
+      // Public platform login — middleware styles/redirects handle sessions
+      if (isPlatformLogin) return true;
 
       if (!auth?.user) return false;
 

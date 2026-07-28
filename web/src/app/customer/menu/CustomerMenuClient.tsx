@@ -40,11 +40,16 @@ export type PaymentView = {
 export type BrandingView = {
   displayName: string;
   tagline: string;
+  welcomeMessage: string | null;
+  footerText: string | null;
+  showPrices: boolean;
+  fontVibe: string;
   logoUrl: string | null;
   backgroundUrl: string | null;
   backgroundColor: string | null;
   accentColor: string;
   accentDim: string;
+  secondaryColor: string | null;
   menuTheme: string;
 };
 
@@ -120,10 +125,20 @@ export default function CustomerMenuClient({
     ["--cm-accent" as string]: branding.accentColor,
     ["--cm-accent-dim" as string]: branding.accentDim,
     ["--cm-accent-glow" as string]: `${branding.accentColor}40`,
+    ...(branding.secondaryColor
+      ? { ["--cm-secondary" as string]: branding.secondaryColor }
+      : {}),
     ...(branding.backgroundColor && branding.menuTheme === "custom"
       ? { ["--cm-bg" as string]: branding.backgroundColor }
       : {}),
   };
+
+  const vibeClass =
+    branding.fontVibe === "modern"
+      ? "cm-vibe-modern"
+      : branding.fontVibe === "warm"
+        ? "cm-vibe-warm"
+        : "cm-vibe-classic";
 
   const cartLines = useMemo(() => Object.values(cart), [cart]);
   const cartCount = cartLines.reduce((s, l) => s + l.qty, 0);
@@ -238,7 +253,7 @@ export default function CustomerMenuClient({
 
   return (
     <div
-      className={`cm-body ${branding.backgroundUrl ? "has-bg-image" : ""}`}
+      className={`cm-body ${vibeClass} ${branding.backgroundUrl ? "has-bg-image" : ""}`}
       style={styleVars}
     >
       {branding.backgroundUrl && (
@@ -257,6 +272,9 @@ export default function CustomerMenuClient({
           <h1 className="cm-title">{branding.displayName}</h1>
           <span className="cm-table-pill">Table {tableNumber}</span>
           <p className="cm-tagline">{branding.tagline}</p>
+          {branding.welcomeMessage && (
+            <p className="cm-welcome">{branding.welcomeMessage}</p>
+          )}
           {pendingWaiter && (
             <div className="cm-waiter-banner">
               {waiterMessage || "A waiter has been notified and will be with you shortly."}
@@ -373,7 +391,7 @@ export default function CustomerMenuClient({
                       fontStyle: "italic",
                     }}
                   >
-                    Thank you for dining with us.
+                    {branding.footerText || "Thank you for dining with us."}
                   </p>
                 </div>
               )}
@@ -400,7 +418,10 @@ export default function CustomerMenuClient({
                           <h3 className="cm-item-name">{p.name}</h3>
                           {p.description && <p className="cm-item-desc">{p.description}</p>}
                           <div className="cm-item-footer">
-                            <span className="cm-item-price">{money(p.price)}</span>
+                            {branding.showPrices && (
+                              <span className="cm-item-price">{money(p.price)}</span>
+                            )}
+                            {!branding.showPrices && <span />}
                             <div>
                               <button
                                 type="button"

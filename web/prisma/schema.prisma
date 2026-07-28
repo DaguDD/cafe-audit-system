@@ -99,6 +99,12 @@ enum MenuTheme {
   custom
 }
 
+enum FontVibe {
+  classic
+  modern
+  warm
+}
+
 model Cafe {
   id           Int        @id @default(autoincrement()) @map("cafe_id")
   name         String     @db.VarChar(120)
@@ -148,6 +154,11 @@ model CafeSettings {
   backgroundColor  String? @map("background_color") @db.VarChar(20)
   accentColor      String? @map("accent_color") @db.VarChar(20)
   menuTheme        MenuTheme @default(dark_gold) @map("menu_theme")
+  welcomeMessage   String?   @map("welcome_message") @db.VarChar(500)
+  showPrices       Boolean   @default(true) @map("show_prices")
+  footerText       String?   @map("footer_text") @db.VarChar(300)
+  fontVibe         FontVibe  @default(classic) @map("font_vibe")
+  secondaryColor   String?   @map("secondary_color") @db.VarChar(20)
   vatRate          Decimal @default(15) @map("vat_rate") @db.Decimal(5, 2)
   serviceChargeRate Decimal @default(10) @map("service_charge_rate") @db.Decimal(5, 2)
   cafe             Cafe   @relation(fields: [cafeId], references: [id], onDelete: Cascade)

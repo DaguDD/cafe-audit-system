@@ -33,7 +33,7 @@ export async function requireRoles(roles: Role[]) {
 
 export async function requirePlatformAdmin() {
   const user = await requireUser();
-  if (user.role !== "platform_admin") redirect("/dashboard?denied=1");
+  if (user.role !== "platform_admin") redirect("/platform/login?error=cafe");
   return user;
 }
 

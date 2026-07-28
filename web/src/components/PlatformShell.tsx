@@ -22,7 +22,7 @@ export default async function PlatformShell({
 }) {
   const session = await auth();
   if (!session?.user || session.user.role !== "platform_admin") {
-    redirect("/login");
+    redirect("/platform/login");
   }
 
   return (

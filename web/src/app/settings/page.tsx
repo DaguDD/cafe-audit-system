@@ -5,7 +5,7 @@ import { requireUser, requireRoles, ROLE_LABEL } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import type { MenuTheme, Role, UserStatus } from "@prisma/client";
+import type { FontVibe, MenuTheme, Role, UserStatus } from "@prisma/client";
 import { put } from "@vercel/blob";
 import { normalizeHex } from "@/lib/bill-receipt";
 
@@ -168,12 +168,20 @@ export default async function SettingsPage({
     const u = await requireRoles(["admin", "manager"]);
     const displayName = String(formData.get("displayName") || "").trim() || null;
     const tagline = String(formData.get("tagline") || "").trim() || null;
+    const welcomeMessage = String(formData.get("welcomeMessage") || "").trim() || null;
+    const footerText = String(formData.get("footerText") || "").trim() || null;
+    const showPrices = formData.get("showPrices") !== "0";
+    const fontRaw = String(formData.get("fontVibe") || "classic");
+    const fontVibe = (["classic", "modern", "warm"].includes(fontRaw)
+      ? fontRaw
+      : "classic") as FontVibe;
     const menuTheme = (String(formData.get("menuTheme") || "dark_gold") === "custom"
       ? "custom"
       : "dark_gold") as MenuTheme;
     const accentColor =
       normalizeHex(String(formData.get("accentColor") || ""), "#d4af74") || "#d4af74";
     const backgroundColor = normalizeHex(String(formData.get("backgroundColor") || "")) || null;
+    const secondaryColor = normalizeHex(String(formData.get("secondaryColor") || "")) || null;
     const clearLogo = formData.get("clearLogo") === "1";
     const clearBg = formData.get("clearBg") === "1";
 
@@ -206,8 +214,13 @@ export default async function SettingsPage({
       update: {
         displayName,
         tagline,
+        welcomeMessage,
+        footerText,
+        showPrices,
+        fontVibe,
         accentColor,
         backgroundColor,
+        secondaryColor,
         menuTheme,
         logoUrl,
         backgroundUrl,
@@ -216,8 +229,13 @@ export default async function SettingsPage({
         cafeId: u.cafeId!,
         displayName,
         tagline,
+        welcomeMessage,
+        footerText,
+        showPrices,
+        fontVibe,
         accentColor,
         backgroundColor,
+        secondaryColor,
         menuTheme,
         logoUrl,
         backgroundUrl,
@@ -460,142 +478,335 @@ export default async function SettingsPage({
       )}
 
       {tab === "branding" && isManager && (
-        <div className="glass-panel">
-          <div className="panel-head">
-            <h3>Customer menu branding</h3>
-            {previewMenuUrl && (
-              <a
-                href={previewMenuUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="cas-btn cas-btn-ghost cas-btn-sm"
-              >
-                Preview menu
-              </a>
-            )}
-          </div>
-          <div className="panel-body">
-            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
-              Logo, colors, and display name appear on the guest QR menu. Staff sidebar uses the
-              display name and accent lightly.
-            </p>
-            <form action={saveBranding} encType="multipart/form-data" style={{ maxWidth: 560 }}>
-              <div className="form-row">
-                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Display name (optional override)
-                </label>
-                <input
-                  name="displayName"
-                  className="cas-input"
-                  placeholder={cafe.name}
-                  defaultValue={settings?.displayName || ""}
-                />
-              </div>
-              <div className="form-row">
-                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Tagline</label>
-                <input
-                  name="tagline"
-                  className="cas-input"
-                  placeholder="Tap a category, add to cart…"
-                  defaultValue={settings?.tagline || ""}
-                />
-              </div>
-              <div className="form-row cols-2">
-                <div>
-                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                    Accent color
-                  </label>
-                  <input
-                    name="accentColor"
-                    type="color"
-                    className="cas-input"
-                    defaultValue={settings?.accentColor || "#d4af74"}
-                    style={{ height: 42, padding: 4 }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                    Background color (custom theme)
-                  </label>
-                  <input
-                    name="backgroundColor"
-                    type="color"
-                    className="cas-input"
-                    defaultValue={settings?.backgroundColor || "#0c0b09"}
-                    style={{ height: 42, padding: 4 }}
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Menu theme</label>
-                <select
-                  name="menuTheme"
-                  className="cas-select"
-                  defaultValue={settings?.menuTheme || "dark_gold"}
+        <div
+          style={{
+            display: "grid",
+            gap: "0.85rem",
+            gridTemplateColumns: "minmax(0, 1.1fr) minmax(260px, 0.75fr)",
+          }}
+          className="branding-layout"
+        >
+          <style>{`
+            @media (max-width: 900px) {
+              .branding-layout { grid-template-columns: 1fr !important; }
+            }
+          `}</style>
+          <div className="glass-panel">
+            <div className="panel-head">
+              <h3>Customer menu branding</h3>
+              {previewMenuUrl && (
+                <a
+                  href={previewMenuUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="cas-btn cas-btn-ghost cas-btn-sm"
                 >
-                  <option value="dark_gold">Dark gold (default)</option>
-                  <option value="custom">Custom (use accent + background)</option>
-                </select>
-              </div>
-              <div className="form-row">
-                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Logo</label>
+                  Open live menu
+                </a>
+              )}
+            </div>
+            <div className="panel-body">
+              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+                Guest QR menu and a light touch on the staff sidebar (logo + accent).
+              </p>
+              <form action={saveBranding} encType="multipart/form-data">
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Display name (optional override)
+                  </label>
+                  <input
+                    name="displayName"
+                    className="cas-input"
+                    placeholder={cafe.name}
+                    defaultValue={settings?.displayName || ""}
+                  />
+                </div>
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Tagline</label>
+                  <input
+                    name="tagline"
+                    className="cas-input"
+                    placeholder="Tap a category, add to cart…"
+                    defaultValue={settings?.tagline || ""}
+                  />
+                </div>
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Welcome message
+                  </label>
+                  <textarea
+                    name="welcomeMessage"
+                    className="cas-input"
+                    rows={2}
+                    placeholder="Welcome — ask staff if you need anything."
+                    defaultValue={settings?.welcomeMessage || ""}
+                  />
+                </div>
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Footer text
+                  </label>
+                  <input
+                    name="footerText"
+                    className="cas-input"
+                    placeholder="Thank you for dining with us."
+                    defaultValue={settings?.footerText || ""}
+                  />
+                </div>
+                <div className="form-row cols-2">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Accent color
+                    </label>
+                    <input
+                      name="accentColor"
+                      type="color"
+                      className="cas-input"
+                      defaultValue={settings?.accentColor || "#d4af74"}
+                      style={{ height: 42, padding: 4 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Secondary color
+                    </label>
+                    <input
+                      name="secondaryColor"
+                      type="color"
+                      className="cas-input"
+                      defaultValue={settings?.secondaryColor || "#8b7355"}
+                      style={{ height: 42, padding: 4 }}
+                    />
+                  </div>
+                </div>
+                <div className="form-row cols-2">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Background color (custom theme)
+                    </label>
+                    <input
+                      name="backgroundColor"
+                      type="color"
+                      className="cas-input"
+                      defaultValue={settings?.backgroundColor || "#0c0b09"}
+                      style={{ height: 42, padding: 4 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Menu theme
+                    </label>
+                    <select
+                      name="menuTheme"
+                      className="cas-select"
+                      defaultValue={settings?.menuTheme || "dark_gold"}
+                    >
+                      <option value="dark_gold">Dark gold (default)</option>
+                      <option value="custom">Custom (use accent + background)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row cols-2">
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Font vibe
+                    </label>
+                    <select
+                      name="fontVibe"
+                      className="cas-select"
+                      defaultValue={settings?.fontVibe || "classic"}
+                    >
+                      <option value="classic">Classic (serif titles)</option>
+                      <option value="modern">Modern (clean sans)</option>
+                      <option value="warm">Warm (rounded friendly)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      Show prices on menu
+                    </label>
+                    <select
+                      name="showPrices"
+                      className="cas-select"
+                      defaultValue={settings?.showPrices === false ? "0" : "1"}
+                    >
+                      <option value="1">Show prices</option>
+                      <option value="0">Hide prices</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Logo</label>
+                  {settings?.logoUrl && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={settings.logoUrl}
+                        alt="Logo"
+                        style={{ maxHeight: 48, borderRadius: 8 }}
+                      />
+                      <label
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "center",
+                          fontSize: "0.8rem",
+                          marginTop: 6,
+                        }}
+                      >
+                        <input type="checkbox" name="clearLogo" value="1" /> Clear logo
+                      </label>
+                    </div>
+                  )}
+                  <input name="logo" type="file" accept="image/*" className="cas-input" />
+                </div>
+                <div className="form-row">
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Cover / background image
+                  </label>
+                  {settings?.backgroundUrl && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={settings.backgroundUrl}
+                        alt="Background"
+                        style={{
+                          maxHeight: 64,
+                          borderRadius: 8,
+                          width: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                      <label
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "center",
+                          fontSize: "0.8rem",
+                          marginTop: 6,
+                        }}
+                      >
+                        <input type="checkbox" name="clearBg" value="1" /> Clear background image
+                      </label>
+                    </div>
+                  )}
+                  <input name="background" type="file" accept="image/*" className="cas-input" />
+                </div>
+                <button className="cas-btn cas-btn-primary">Save branding</button>
+              </form>
+            </div>
+          </div>
+
+          <div className="glass-panel" style={{ alignSelf: "start" }}>
+            <div className="panel-head">
+              <h3>Guest header preview</h3>
+            </div>
+            <div className="panel-body" style={{ padding: 0 }}>
+              <div
+                style={{
+                  position: "relative",
+                  minHeight: 220,
+                  padding: "1.35rem 1.15rem 1.15rem",
+                  background:
+                    settings?.backgroundUrl
+                      ? `linear-gradient(180deg, rgba(12,11,9,0.55), rgba(12,11,9,0.88)), url(${settings.backgroundUrl}) center/cover`
+                      : `linear-gradient(160deg, ${(settings?.accentColor || "#d4af74")}33, transparent 50%), ${
+                          settings?.backgroundColor || "#0c0b09"
+                        }`,
+                  borderRadius: "0 0 12px 12px",
+                  overflow: "hidden",
+                }}
+              >
                 {settings?.logoUrl && (
-                  <div style={{ marginBottom: "0.5rem" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={settings.logoUrl}
-                      alt="Logo"
-                      style={{ maxHeight: 48, borderRadius: 8 }}
-                    />
-                    <label
-                      style={{
-                        display: "flex",
-                        gap: 6,
-                        alignItems: "center",
-                        fontSize: "0.8rem",
-                        marginTop: 6,
-                      }}
-                    >
-                      <input type="checkbox" name="clearLogo" value="1" /> Clear logo
-                    </label>
-                  </div>
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={settings.logoUrl}
+                    alt=""
+                    style={{
+                      height: 44,
+                      width: "auto",
+                      maxWidth: 120,
+                      objectFit: "contain",
+                      marginBottom: "0.75rem",
+                      borderRadius: 8,
+                    }}
+                  />
                 )}
-                <input name="logo" type="file" accept="image/*" className="cas-input" />
-              </div>
-              <div className="form-row">
-                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Background image (optional)
-                </label>
-                {settings?.backgroundUrl && (
-                  <div style={{ marginBottom: "0.5rem" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={settings.backgroundUrl}
-                      alt="Background"
-                      style={{
-                        maxHeight: 64,
-                        borderRadius: 8,
-                        width: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                    <label
-                      style={{
-                        display: "flex",
-                        gap: 6,
-                        alignItems: "center",
-                        fontSize: "0.8rem",
-                        marginTop: 6,
-                      }}
-                    >
-                      <input type="checkbox" name="clearBg" value="1" /> Clear background image
-                    </label>
-                  </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.68rem",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    color: settings?.secondaryColor || settings?.accentColor || "#d4af74",
+                  }}
+                >
+                  Table menu
+                </p>
+                <h4
+                  style={{
+                    margin: "0.35rem 0 0.4rem",
+                    fontSize: "1.45rem",
+                    fontFamily:
+                      settings?.fontVibe === "modern"
+                        ? "system-ui, sans-serif"
+                        : settings?.fontVibe === "warm"
+                          ? "ui-rounded, system-ui, sans-serif"
+                          : "Georgia, serif",
+                  }}
+                >
+                  {settings?.displayName?.trim() || cafe.name}
+                </h4>
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontSize: "0.72rem",
+                    padding: "0.2rem 0.55rem",
+                    borderRadius: 999,
+                    border: `1px solid ${settings?.accentColor || "#d4af74"}66`,
+                    color: settings?.accentColor || "#d4af74",
+                    marginBottom: "0.55rem",
+                  }}
+                >
+                  Table T01
+                </span>
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                  {settings?.tagline?.trim() ||
+                    "Tap a category, add to cart, and we'll bring it right over."}
+                </p>
+                {settings?.welcomeMessage?.trim() && (
+                  <p
+                    style={{
+                      margin: "0.75rem 0 0",
+                      fontSize: "0.8rem",
+                      padding: "0.55rem 0.65rem",
+                      borderLeft: `3px solid ${settings?.accentColor || "#d4af74"}`,
+                      background: "rgba(0,0,0,0.25)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {settings.welcomeMessage}
+                  </p>
                 )}
-                <input name="background" type="file" accept="image/*" className="cas-input" />
+                {settings?.footerText?.trim() && (
+                  <p
+                    style={{
+                      margin: "1rem 0 0",
+                      fontSize: "0.72rem",
+                      color: "var(--text-muted)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {settings.footerText}
+                  </p>
+                )}
+                {settings?.showPrices === false && (
+                  <p style={{ margin: "0.65rem 0 0", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                    Prices hidden on guest menu
+                  </p>
+                )}
               </div>
-              <button className="cas-btn cas-btn-primary">Save branding</button>
-            </form>
+            </div>
           </div>
         </div>
       )}

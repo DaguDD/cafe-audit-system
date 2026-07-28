@@ -40,158 +40,192 @@ export default async function LandingPage({
   return (
     <div className="landing">
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@400;500;600;700&display=swap');
         .landing {
-          --land-bg: #0e0c0a;
-          --land-surface: #1a1612;
-          --land-accent: #e8954a;
+          --land-bg: #0c0a08;
+          --land-surface: rgba(26, 22, 18, 0.72);
+          --land-accent: #d4a574;
           --land-text: #f5f0ea;
           --land-muted: #a89f94;
+          --land-font-display: "Fraunces", Georgia, serif;
+          --land-font-body: "Outfit", system-ui, sans-serif;
           min-height: 100vh;
-          background:
-            radial-gradient(ellipse 80% 50% at 70% 0%, rgba(232,149,74,0.14), transparent 55%),
-            linear-gradient(180deg, #12100e 0%, #0a0908 100%);
+          background: var(--land-bg);
           color: var(--land-text);
+          font-family: var(--land-font-body);
         }
         .landing-nav {
+          position: absolute; top: 0; left: 0; right: 0; z-index: 5;
           display: flex; justify-content: space-between; align-items: center;
-          padding: 1.1rem 1.5rem; max-width: 1100px; margin: 0 auto;
+          padding: 1.15rem 1.5rem; max-width: 1120px; margin: 0 auto;
         }
         .landing-brand {
-          display: flex; align-items: center; gap: 0.7rem;
-          font-weight: 700; letter-spacing: -0.02em; font-size: 1.15rem;
+          display: flex; align-items: center; gap: 0.65rem;
+          font-family: var(--land-font-display);
+          font-weight: 700; letter-spacing: -0.02em; font-size: 1.2rem;
         }
         .landing-brand .mark {
-          width: 40px; height: 40px; border-radius: 10px;
-          background: rgba(232,149,74,0.16); color: var(--land-accent);
+          width: 38px; height: 38px; border-radius: 10px;
+          background: rgba(212,165,116,0.16); color: var(--land-accent);
           display: grid; place-items: center; font-size: 0.95rem; font-weight: 800;
+          font-family: var(--land-font-body);
         }
         .landing-nav-actions { display: flex; gap: 0.5rem; align-items: center; }
         .landing-hero {
-          max-width: 1100px; margin: 0 auto;
-          padding: 3.5rem 1.5rem 4rem;
-          display: grid; gap: 2rem;
-          min-height: calc(100vh - 72px);
-          align-content: center;
+          position: relative;
+          min-height: 100vh;
+          display: flex; flex-direction: column; justify-content: flex-end;
+          padding: 6.5rem 1.5rem 3.5rem;
+          overflow: hidden;
         }
-        @media (min-width: 900px) {
-          .landing-hero {
-            grid-template-columns: 1.1fr 0.9fr;
-            align-items: center;
-          }
+        .landing-hero-bg {
+          position: absolute; inset: 0; z-index: 0;
+          background:
+            linear-gradient(180deg, rgba(12,10,8,0.35) 0%, rgba(12,10,8,0.55) 45%, rgba(12,10,8,0.94) 100%),
+            radial-gradient(ellipse 90% 70% at 70% 30%, rgba(212,165,116,0.22), transparent 55%),
+            url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E"),
+            linear-gradient(135deg, #1a1410 0%, #2a1c14 35%, #3d2818 55%, #1c120e 100%);
+          background-size: cover, cover, 280px, cover;
+          animation: land-breathe 14s ease-in-out infinite alternate;
         }
-        .landing-hero h1 {
-          font-size: clamp(2.6rem, 6vw, 4rem);
-          line-height: 1.02; margin: 0.35rem 0 0.85rem;
+        .landing-hero-bg::after {
+          content: "";
+          position: absolute; inset: 0;
+          background:
+            radial-gradient(circle at 25% 70%, rgba(90,50,25,0.35), transparent 40%),
+            radial-gradient(circle at 85% 20%, rgba(212,165,116,0.12), transparent 35%);
+        }
+        @keyframes land-breathe {
+          from { transform: scale(1); }
+          to { transform: scale(1.04); }
+        }
+        .landing-hero-inner {
+          position: relative; z-index: 1;
+          max-width: 1120px; margin: 0 auto; width: 100%;
+          animation: land-rise 0.9s ease both;
+        }
+        @keyframes land-rise {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: none; }
+        }
+        .landing-hero .brand-hero {
+          font-family: var(--land-font-display);
+          font-size: clamp(3.4rem, 11vw, 6.5rem);
+          line-height: 0.95; margin: 0 0 0.85rem;
           letter-spacing: -0.04em; font-weight: 700;
+          color: var(--land-text);
+          text-shadow: 0 8px 40px rgba(0,0,0,0.45);
         }
-        .landing-hero .eyebrow {
-          color: var(--land-accent); text-transform: uppercase;
-          letter-spacing: 0.14em; font-size: 0.72rem; margin: 0;
+        .landing-hero .headline {
+          font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+          font-weight: 500; margin: 0 0 0.55rem;
+          max-width: 28rem; line-height: 1.35;
+          color: #ebe4db;
         }
         .landing-hero .sub {
-          color: var(--land-muted); font-size: 1.05rem; max-width: 34rem;
-          line-height: 1.55; margin: 0 0 1.5rem;
+          color: var(--land-muted); font-size: 1rem; max-width: 28rem;
+          line-height: 1.55; margin: 0 0 1.6rem;
         }
         .landing-cta { display: flex; flex-wrap: wrap; gap: 0.65rem; }
         .landing-btn {
           display: inline-flex; align-items: center; justify-content: center;
-          padding: 0.7rem 1.15rem; border-radius: 10px; font-weight: 600;
+          padding: 0.75rem 1.25rem; border-radius: 10px; font-weight: 600;
           font-size: 0.95rem; border: 1px solid transparent;
+          transition: transform 0.2s ease, background 0.2s ease;
         }
-        .landing-btn-primary { background: var(--land-accent); color: #12100e; }
-        .landing-btn-ghost { border-color: #3d352c; color: var(--land-text); }
-        .landing-visual {
-          border-radius: 18px; overflow: hidden;
-          border: 1px solid #3d352c;
-          background:
-            linear-gradient(160deg, rgba(232,149,74,0.2), transparent 40%),
-            #1a1612;
-          min-height: 320px;
-          position: relative;
-          animation: land-fade 1.1s ease both;
+        .landing-btn:hover { transform: translateY(-1px); }
+        .landing-btn-primary { background: var(--land-accent); color: #14100c; }
+        .landing-btn-ghost {
+          border-color: rgba(245,240,234,0.28); color: var(--land-text);
+          backdrop-filter: blur(6px); background: rgba(12,10,8,0.25);
         }
-        .landing-visual-card {
-          position: absolute; inset: auto 1.25rem 1.25rem 1.25rem;
-          background: rgba(18,16,14,0.88); border: 1px solid #3d352c;
-          border-radius: 12px; padding: 1rem 1.1rem;
-          backdrop-filter: blur(8px);
-          animation: land-up 1s 0.2s ease both;
-        }
-        .landing-visual-card strong { display: block; font-size: 1.1rem; margin-bottom: 0.25rem; }
-        .landing-visual-card span { color: var(--land-muted); font-size: 0.85rem; }
-        @keyframes land-fade { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: none; } }
-        @keyframes land-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
         .landing-section {
-          max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem;
+          max-width: 1120px; margin: 0 auto; padding: 4rem 1.5rem;
         }
         .landing-section h2 {
-          font-size: 1.75rem; margin: 0 0 0.5rem; letter-spacing: -0.02em;
+          font-family: var(--land-font-display);
+          font-size: clamp(1.7rem, 3vw, 2.15rem);
+          margin: 0 0 0.5rem; letter-spacing: -0.02em;
         }
         .landing-section .lead {
-          color: var(--land-muted); margin: 0 0 1.5rem; max-width: 36rem;
+          color: var(--land-muted); margin: 0 0 1.75rem; max-width: 36rem;
+          line-height: 1.5;
         }
-        .feature-grid {
-          display: grid; gap: 0.85rem;
+        .feature-list {
+          display: grid; gap: 1.35rem 2rem;
           grid-template-columns: 1fr;
+          border-top: 1px solid rgba(61,53,44,0.85);
+          padding-top: 1.5rem;
         }
-        @media (min-width: 700px) {
-          .feature-grid { grid-template-columns: repeat(3, 1fr); }
+        @media (min-width: 720px) {
+          .feature-list { grid-template-columns: 1fr 1fr; }
         }
-        .feature {
-          background: var(--land-surface); border: 1px solid #3d352c;
-          border-radius: 12px; padding: 1.15rem 1.2rem;
+        .feature-row h3 {
+          margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 600;
         }
-        .feature h3 { margin: 0 0 0.4rem; font-size: 1rem; }
-        .feature p { margin: 0; color: var(--land-muted); font-size: 0.9rem; line-height: 1.45; }
-        .steps { display: grid; gap: 0.85rem; }
-        @media (min-width: 700px) { .steps { grid-template-columns: repeat(3, 1fr); } }
-        .step {
-          border-left: 2px solid var(--land-accent); padding: 0.25rem 0 0.25rem 1rem;
+        .feature-row p {
+          margin: 0; color: var(--land-muted); font-size: 0.92rem; line-height: 1.5;
         }
-        .step .n { color: var(--land-accent); font-size: 0.75rem; letter-spacing: 0.08em; }
-        .step h3 { margin: 0.2rem 0; font-size: 1.05rem; }
-        .step p { margin: 0; color: var(--land-muted); font-size: 0.9rem; }
+        .owners-band {
+          background:
+            linear-gradient(90deg, rgba(212,165,116,0.08), transparent 60%),
+            #14110e;
+          border-block: 1px solid #3d352c;
+        }
+        .owners-band .landing-section { padding-block: 3.5rem; }
+        .steps {
+          display: grid; gap: 1.5rem;
+          counter-reset: step;
+        }
+        @media (min-width: 700px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 2rem; } }
+        .step { counter-increment: step; }
+        .step .n {
+          font-family: var(--land-font-display);
+          color: var(--land-accent); font-size: 1.5rem; margin-bottom: 0.35rem;
+        }
+        .step .n::before { content: "0" counter(step); }
+        .step h3 { margin: 0.15rem 0 0.35rem; font-size: 1.1rem; }
+        .step p { margin: 0; color: var(--land-muted); font-size: 0.9rem; line-height: 1.45; }
         .contact-grid {
-          display: grid; gap: 1.25rem;
+          display: grid; gap: 2rem;
         }
         @media (min-width: 800px) {
-          .contact-grid { grid-template-columns: 1fr 1.1fr; align-items: start; }
-        }
-        .contact-direct {
-          background: var(--land-surface); border: 1px solid #3d352c;
-          border-radius: 14px; padding: 1.35rem;
+          .contact-grid { grid-template-columns: 0.9fr 1.1fr; align-items: start; }
         }
         .contact-direct a {
           color: var(--land-accent); text-decoration: none; font-weight: 600;
+          font-size: 1.05rem;
         }
         .contact-direct a:hover { text-decoration: underline; }
         .contact-row {
-          display: flex; flex-direction: column; gap: 0.2rem;
-          margin-bottom: 1rem;
+          display: flex; flex-direction: column; gap: 0.25rem;
+          margin-bottom: 1.15rem;
         }
         .contact-row .label {
-          font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+          font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em;
           color: var(--land-muted);
         }
-        .contact-panel {
-          background: var(--land-surface); border: 1px solid #3d352c;
-          border-radius: 14px; padding: 1.35rem;
-        }
         .contact-panel input, .contact-panel textarea {
-          width: 100%; background: #12100e; border: 1px solid #3d352c;
-          border-radius: 8px; color: var(--land-text); padding: 0.55rem 0.7rem;
-          font-size: 0.9rem; margin-bottom: 0.65rem;
+          width: 100%; background: transparent;
+          border: 0; border-bottom: 1px solid #3d352c;
+          border-radius: 0; color: var(--land-text); padding: 0.7rem 0;
+          font-size: 0.95rem; margin-bottom: 0.35rem;
+          font-family: inherit;
+        }
+        .contact-panel input:focus, .contact-panel textarea:focus {
+          outline: none; border-bottom-color: var(--land-accent);
         }
         .landing-footer {
-          border-top: 1px solid #3d352c; padding: 1.25rem 1.5rem;
+          border-top: 1px solid #3d352c; padding: 1.35rem 1.5rem;
           color: var(--land-muted); font-size: 0.8rem;
-          max-width: 1100px; margin: 0 auto;
+          max-width: 1120px; margin: 0 auto;
           display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
           align-items: center;
         }
-        .landing-footer a { color: var(--land-muted); }
+        .landing-footer a { color: var(--land-muted); text-decoration: none; }
+        .landing-footer a:hover { color: var(--land-text); }
         .landing-footer .platform-link {
-          opacity: 0.7; font-size: 0.75rem;
+          opacity: 0.55; font-size: 0.72rem; letter-spacing: 0.04em;
         }
       `}</style>
 
@@ -205,99 +239,108 @@ export default async function LandingPage({
             Try demo
           </Link>
           <a href="#contact" className="landing-btn landing-btn-primary">
-            Get your cafe
+            Contact
           </a>
         </div>
       </nav>
 
       <section className="landing-hero">
-        <div>
-          <p className="eyebrow">Cafe operations software</p>
-          <h1>Casora</h1>
+        <div className="landing-hero-bg" aria-hidden />
+        <div className="landing-hero-inner">
+          <h1 className="brand-hero">Casora</h1>
+          <p className="headline">Cafe software that keeps stock honest and tables moving.</p>
           <p className="sub">
-            Inventory that ties to recipes, QR table ordering, kitchen tickets, Telebirr payment
-            verification, and stock reconciliation — one desk for floor, kitchen, and back office.
+            We run the platform. Your cafe gets its own branded system — QR menus, kitchen tickets,
+            payment proofs, and inventory that follows every sale.
           </p>
           <div className="landing-cta">
             <Link href="/login" className="landing-btn landing-btn-primary">
-              Try the demo
+              Try cafe demo
             </Link>
             <a href="#contact" className="landing-btn landing-btn-ghost">
-              Contact us
+              Contact
             </a>
-          </div>
-        </div>
-        <div className="landing-visual" aria-hidden>
-          <div className="landing-visual-card">
-            <strong>Live floor control</strong>
-            <span>QR menus · kitchen queue · payment proofs · variance audits</span>
           </div>
         </div>
       </section>
 
       <section className="landing-section" id="features">
-        <h2>What Casora does</h2>
-        <p className="lead">Built for Ethiopian cafes that need stock honesty and faster table service.</p>
-        <div className="feature-grid">
-          <div className="feature">
-            <h3>Inventory & recipes</h3>
-            <p>Every sale deducts ingredients. Low-stock alerts keep the bar stocked.</p>
+        <h2>What it does</h2>
+        <p className="lead">
+          One desk for floor, kitchen, and back office — built for Ethiopian cafes.
+        </p>
+        <div className="feature-list">
+          <div className="feature-row">
+            <h3>Inventory tied to recipes</h3>
+            <p>Every paid order deducts ingredients. Low-stock signals keep the bar ready.</p>
           </div>
-          <div className="feature">
-            <h3>QR ordering</h3>
-            <p>Guests scan a table QR, order from their phone, and upload Telebirr proofs.</p>
+          <div className="feature-row">
+            <h3>QR ordering & kitchen</h3>
+            <p>Guests scan a table QR; tickets hit the line instantly with status from prep to served.</p>
           </div>
-          <div className="feature">
-            <h3>Kitchen & payments</h3>
-            <p>Tickets hit the line instantly. Staff approve payment screenshots before clearing tables.</p>
+          <div className="feature-row">
+            <h3>Payments you can trust</h3>
+            <p>Cash per order ticket or pay-all. Guests upload Telebirr proofs; staff approve before clearing.</p>
           </div>
-          <div className="feature">
-            <h3>Audit reconciliation</h3>
-            <p>Physical counts vs system qty with variance flags for managers and auditors.</p>
-          </div>
-          <div className="feature">
-            <h3>Shifts & waste</h3>
-            <p>Clock staff, log spoilage, and keep procurement purchase orders in one place.</p>
-          </div>
-          <div className="feature">
-            <h3>Multi-cafe ready</h3>
-            <p>We provision your cafe instance, train your team, and monitor health from our platform.</p>
+          <div className="feature-row">
+            <h3>Audit & variance</h3>
+            <p>Physical counts vs system qty with clear flags for managers and auditors.</p>
           </div>
         </div>
       </section>
 
+      <div className="owners-band" id="owners">
+        <section className="landing-section">
+          <h2>For cafe owners</h2>
+          <p className="lead">
+            Casora is the platform we operate. Each cafe gets a dedicated workspace, staff logins,
+            branded guest menu, and QR sheets — not a shared generic storefront.
+          </p>
+          <div className="feature-list">
+            <div className="feature-row">
+              <h3>Your brand on the guest phone</h3>
+              <p>Logo, colors, welcome message, and footer — guests feel your cafe, not ours.</p>
+            </div>
+            <div className="feature-row">
+              <h3>Roles that match the floor</h3>
+              <p>Managers, waiters, kitchen, cashiers, and auditors each see the right tools.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <section className="landing-section" id="how">
         <h2>How it works</h2>
-        <p className="lead">From first hello to a live cafe desk in three steps.</p>
+        <p className="lead">From first hello to a live cafe desk.</p>
         <div className="steps">
           <div className="step">
-            <div className="n">01</div>
+            <div className="n" />
             <h3>Try the demo</h3>
-            <p>Sign in as manager / admin123 and walk the full floor workflow.</p>
+            <p>Sign in as manager / admin123 and walk ordering, kitchen, and payments.</p>
           </div>
           <div className="step">
-            <div className="n">02</div>
+            <div className="n" />
             <h3>Tell us about your cafe</h3>
-            <p>Call, email, or send a short note — tables, staff size, Telebirr details.</p>
+            <p>Call, email, or leave a note — tables, staff, Telebirr details.</p>
           </div>
           <div className="step">
-            <div className="n">03</div>
+            <div className="n" />
             <h3>We provision your system</h3>
-            <p>You get a dedicated cafe workspace, admin login, and QR sheet for every table.</p>
+            <p>Dedicated cafe workspace, admin login, and a QR sheet for every table.</p>
           </div>
         </div>
       </section>
 
       <section className="landing-section" id="contact">
-        <h2>Contact us</h2>
+        <h2>Contact</h2>
         <p className="lead">Ready for your own cafe system? Reach us directly or leave a note.</p>
         {sp.contact === "ok" && (
-          <div className="cas-alert cas-alert-success" style={{ maxWidth: 560, marginBottom: "1rem" }}>
+          <div className="cas-alert cas-alert-success" style={{ maxWidth: 560, marginBottom: "1.25rem" }}>
             Thanks — we received your message and will be in touch.
           </div>
         )}
         {sp.contact === "err" && (
-          <div className="cas-alert cas-alert-warning" style={{ maxWidth: 560, marginBottom: "1rem" }}>
+          <div className="cas-alert cas-alert-warning" style={{ maxWidth: 560, marginBottom: "1.25rem" }}>
             Please fill in name, email, and message.
           </div>
         )}
@@ -311,9 +354,8 @@ export default async function LandingPage({
               <span className="label">Email</span>
               <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
             </div>
-            <p style={{ color: "var(--land-muted)", fontSize: "0.88rem", margin: 0, lineHeight: 1.45 }}>
-              Prefer a quick chat? Call or email — we&apos;ll help you get Casora running for your
-              cafe.
+            <p style={{ color: "var(--land-muted)", fontSize: "0.9rem", margin: 0, lineHeight: 1.5 }}>
+              Prefer a quick chat? Call or email — we&apos;ll get Casora running for your cafe.
             </p>
           </div>
           <div className="contact-panel">
@@ -323,7 +365,11 @@ export default async function LandingPage({
               <input name="phone" placeholder="Phone (optional)" />
               <input name="cafeName" placeholder="Cafe name (optional)" />
               <textarea name="message" rows={4} placeholder="How can we help?" required />
-              <button type="submit" className="landing-btn landing-btn-primary">
+              <button
+                type="submit"
+                className="landing-btn landing-btn-primary"
+                style={{ marginTop: "1rem" }}
+              >
                 Send message
               </button>
             </form>
@@ -333,10 +379,10 @@ export default async function LandingPage({
 
       <footer className="landing-footer">
         <span>© {new Date().getFullYear()} Casora</span>
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-          <Link href="/login">Try demo / cafe sign-in</Link>
-          <Link href="/login" className="platform-link">
-            Platform sign-in
+        <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+          <Link href="/login">Try cafe demo</Link>
+          <Link href="/platform/login" className="platform-link">
+            Platform
           </Link>
         </div>
       </footer>

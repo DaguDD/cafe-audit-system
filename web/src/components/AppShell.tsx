@@ -154,9 +154,18 @@ export default async function AppShell({
       <div className="app-main-wrap">
         <header className="app-topbar">
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className="mark" style={{ width: 28, height: 28, fontSize: "0.75rem" }}>
-              C
-            </span>
+            {cafe?.settings?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={cafe.settings.logoUrl}
+                alt=""
+                style={{ width: 28, height: 28, borderRadius: 8, objectFit: "contain" }}
+              />
+            ) : (
+              <span className="mark" style={{ width: 28, height: 28, fontSize: "0.75rem" }}>
+                C
+              </span>
+            )}
             <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{cafeLabel}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

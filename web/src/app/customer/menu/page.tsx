@@ -388,11 +388,16 @@ export default async function CustomerMenuPage({
         tagline:
           settings?.tagline?.trim() ||
           "Tap a category, add to cart, and we'll bring it right over.",
+        welcomeMessage: settings?.welcomeMessage?.trim() || null,
+        footerText: settings?.footerText?.trim() || null,
+        showPrices: settings?.showPrices !== false,
+        fontVibe: settings?.fontVibe || "classic",
         logoUrl: settings?.logoUrl || null,
         backgroundUrl: settings?.backgroundUrl || null,
         backgroundColor: settings?.backgroundColor || null,
         accentColor: accent,
         accentDim: dimAccent(accent),
+        secondaryColor: normalizeHex(settings?.secondaryColor) || null,
         menuTheme: settings?.menuTheme || "dark_gold",
       }}
       categories={categories}

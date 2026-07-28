@@ -3,118 +3,112 @@ export const dynamic = "force-dynamic";
 import AppShell from "@/components/AppShell";
 import { requireRoles, money } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
-import { deductRecipes } from "@/lib/inventory";
+import Link from "next/link";
+
+function statusLabel(s: string) {
+  return s.replace(/_/g, " ");
+}
 
 export default async function OrdersPage() {
   const user = await requireRoles(["admin", "manager", "server"]);
-  const orders = await prisma.order.findMany({
-    where: { cafeId: user.cafeId, status: { notIn: ["cancelled"] } },
-    orderBy: { createdAt: "desc" },
-    take: 40,
-    include: { table: true, items: { include: { product: true } } },
+  const tables = await prisma.restaurantTable.findMany({
+    where: { cafeId: user.cafeId },
+    orderBy: { tableNumber: "asc" },
+    include: {
+      orders: {
+        where: { status: { notIn: ["paid", "cancelled"] } },
+        include: { items: true },
+      },
+      payments: {
+        where: { status: "pending" },
+        take: 1,
+      },
+    },
   });
 
-  async function updateStatus(formData: FormData) {
-    "use server";
-    const user = await requireRoles(["admin", "manager", "server"]);
-    const id = Number(formData.get("id"));
-    const status = String(formData.get("status"));
-    const order = await prisma.order.findFirstOrThrow({
-      where: { id, cafeId: user.cafeId },
-      include: { items: true },
-    });
+  const tiles = tables.map((t) => {
+    const openTotal = t.orders.reduce((s, o) => s + Number(o.subtotal), 0);
+    return {
+      id: t.id,
+      tableNumber: t.tableNumber,
+      status: t.status,
+      capacity: t.capacity,
+      activeOrders: t.orders.length,
+      openTotal,
+      pendingPayment: t.payments.length > 0,
+    };
+  });
 
-    if (status === "paid" && order.status !== "paid") {
-      const shift =
-        (await prisma.shift.findFirst({
-          where: { cafeId: user.cafeId, userId: Number(user.id), status: "open" },
-        })) ||
-        (await prisma.shift.create({
-          data: {
-            cafeId: user.cafeId,
-            userId: Number(user.id),
-            openedBy: Number(user.id),
-            autoManaged: true,
-          },
-        }));
-
-      await deductRecipes(order.items.map((i) => ({ productId: i.productId, qty: i.qty })));
-      for (const item of order.items) {
-        await prisma.sale.create({
-          data: {
-            cafeId: user.cafeId,
-            productId: item.productId,
-            qtySold: item.qty,
-            unitPrice: item.unitPrice,
-            total: item.lineTotal,
-            shiftId: shift.id,
-            userId: Number(user.id),
-            orderId: order.id,
-            tableId: order.tableId,
-          },
-        });
-      }
-      await prisma.order.update({
-        where: { id },
-        data: { status: "paid", paidAt: new Date(), shiftId: shift.id },
-      });
-      await prisma.restaurantTable.update({
-        where: { id: order.tableId },
-        data: { status: "available" },
-      });
-    } else {
-      await prisma.order.update({
-        where: { id },
-        data: {
-          status: status as "pending" | "committed" | "preparing" | "served" | "cancelled",
-        },
-      });
-    }
-    revalidatePath("/orders");
-    revalidatePath("/kitchen");
-    revalidatePath("/dashboard");
-  }
+  const active = tiles.filter((t) => t.activeOrders > 0 || t.pendingPayment || t.status !== "available");
+  const rest = tiles.filter((t) => !active.includes(t));
 
   return (
-    <AppShell title="Active Tables" eyebrow="Orders" lead="Open table orders and status updates.">
-      <div style={{ display: "grid", gap: "0.75rem" }}>
-        {orders.map((o) => (
-          <div key={o.id} className="glass-panel">
-            <div className="panel-head">
-              <h3>
-                #{o.id} · {o.table.tableNumber} · {o.orderSource}
-              </h3>
-              <span className="badge">{o.status}</span>
+    <AppShell
+      title="Active Tables"
+      eyebrow="Orders"
+      lead="Open a table to pay individual orders (cash), pay all, or review guest payment proofs."
+    >
+      {active.length === 0 && (
+        <div className="cas-alert cas-alert-info" style={{ marginBottom: "1rem" }}>
+          No busy tables right now. Guests order via QR menu or waiter tablet.
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "grid",
+          gap: "0.75rem",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        }}
+      >
+        {[...active, ...rest].map((t) => (
+          <Link
+            key={t.id}
+            href={`/orders/${t.id}`}
+            className="glass-panel"
+            style={{
+              textDecoration: "none",
+              color: "inherit",
+              display: "block",
+              borderColor: t.pendingPayment
+                ? "rgba(232, 149, 74, 0.55)"
+                : t.activeOrders > 0
+                  ? "rgba(212, 175, 116, 0.35)"
+                  : undefined,
+            }}
+          >
+            <div className="panel-head" style={{ padding: "0.85rem 1rem 0.35rem" }}>
+              <h3 style={{ margin: 0, fontSize: "1.25rem" }}>{t.tableNumber}</h3>
+              <span
+                className={`badge ${
+                  t.pendingPayment
+                    ? "badge-warning"
+                    : t.status === "available"
+                      ? ""
+                      : "badge-success"
+                }`}
+              >
+                {t.pendingPayment ? "payment pending" : statusLabel(t.status)}
+              </span>
             </div>
-            <div className="panel-body">
-              <p style={{ margin: "0 0 0.5rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                {money(o.subtotal)} · {o.createdAt.toLocaleString()}
+            <div className="panel-body" style={{ paddingTop: "0.35rem" }}>
+              <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                Capacity {t.capacity}
               </p>
-              <ul style={{ margin: "0 0 0.75rem", paddingLeft: "1.1rem", fontSize: "0.85rem" }}>
-                {o.items.map((i) => (
-                  <li key={i.id}>
-                    {i.qty}× {i.product.name} — {money(i.lineTotal)}
-                  </li>
-                ))}
-              </ul>
-              <form action={updateStatus} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                <input type="hidden" name="id" value={o.id} />
-                <select name="status" defaultValue={o.status} className="cas-select" style={{ maxWidth: 180 }}>
-                  {["pending", "committed", "preparing", "served", "paid", "cancelled"].map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <button className="cas-btn cas-btn-primary cas-btn-sm">Update</button>
-              </form>
+              {t.activeOrders > 0 ? (
+                <p style={{ margin: "0.35rem 0 0", fontSize: "0.88rem" }}>
+                  <strong>{t.activeOrders}</strong> open order{t.activeOrders === 1 ? "" : "s"}
+                  <br />
+                  <span style={{ color: "var(--accent)" }}>{money(t.openTotal)}</span>
+                </p>
+              ) : (
+                <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  No active orders
+                </p>
+              )}
             </div>
-          </div>
+          </Link>
         ))}
-        {orders.length === 0 && (
-          <div className="cas-alert cas-alert-info">No orders yet. Use customer QR menu or waiter tablet.</div>
-        )}
       </div>
     </AppShell>
   );

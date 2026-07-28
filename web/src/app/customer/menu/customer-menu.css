@@ -8,6 +8,7 @@
   --cm-accent: #d4af74;
   --cm-accent-dim: #a8895a;
   --cm-accent-glow: rgba(212, 175, 116, 0.25);
+  --cm-secondary: var(--cm-accent-dim);
   --cm-text: #f5f0e8;
   --cm-muted: #9a9288;
   --cm-success: #6bcf8e;
@@ -25,6 +26,21 @@
   font-family: var(--cm-font-ui);
   -webkit-font-smoothing: antialiased;
   position: relative;
+}
+
+.cm-body.cm-vibe-classic {
+  --cm-font-display: Georgia, "Times New Roman", serif;
+  --cm-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.cm-body.cm-vibe-modern {
+  --cm-font-display: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --cm-font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.cm-body.cm-vibe-warm {
+  --cm-font-display: ui-rounded, "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --cm-font-ui: ui-rounded, "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
 }
 
 .cm-body.has-bg-image {
@@ -87,7 +103,7 @@
   font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--cm-accent-dim);
+  color: var(--cm-secondary, var(--cm-accent-dim));
   margin: 0 0 0.35rem;
 }
 
@@ -122,6 +138,19 @@
   margin: 0.85rem auto 0;
   max-width: 280px;
   line-height: 1.45;
+}
+
+.cm-welcome {
+  font-size: 0.84rem;
+  color: var(--cm-text);
+  margin: 0.85rem auto 0;
+  max-width: 320px;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--cm-secondary, var(--cm-accent));
+  background: color-mix(in srgb, var(--cm-accent) 8%, transparent);
+  border-radius: 0 8px 8px 0;
+  text-align: left;
 }
 
 .cm-waiter-banner {

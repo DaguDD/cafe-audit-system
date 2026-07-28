@@ -4,21 +4,18 @@ import { auth, signIn, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-function errorMessage(code: string | undefined, cafeMissing: boolean): string | null {
-  if (cafeMissing || code === "cafe") {
-    return "Your account is not linked to an active cafe. Contact your cafe admin or sign in with a different account.";
-  }
+function errorMessage(code: string | undefined): string | null {
   if (!code) return null;
   if (code === "CredentialsSignin" || code === "credentials") {
-    return "Invalid cafe username or password. Platform admins should use Platform sign-in.";
+    return "Invalid platform credentials. Cafe staff must use the cafe login.";
   }
-  if (code === "platform") {
-    return "Platform accounts sign in at the Platform login page.";
+  if (code === "cafe") {
+    return "Cafe accounts cannot access the platform. Use cafe sign-in instead.";
   }
   return "Sign-in failed. Please try again.";
 }
 
-export default async function CafeLoginPage({
+export default async function PlatformLoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
@@ -26,78 +23,69 @@ export default async function CafeLoginPage({
   const sp = await searchParams;
   const session = await auth();
   const role = session?.user?.role;
-  const cafeId = session?.user?.cafeId ?? null;
-  const cafeMissing =
-    !!session?.user && role !== "platform_admin" && cafeId == null;
-  const hasError = Boolean(sp.error) || cafeMissing;
 
-  if (!hasError) {
-    if (role === "platform_admin") redirect("/platform");
-    if (cafeId) redirect("/dashboard");
-  }
+  if (role === "platform_admin") redirect("/platform");
+  // Any other active session belongs to cafe staff — send them to the cafe desk
+  if (session?.user) redirect("/dashboard");
 
-  const message = errorMessage(sp.error, cafeMissing);
+  const message = errorMessage(sp.error);
 
   return (
-    <div className="auth-shell">
+    <div className="auth-shell platform-auth">
+      <style>{`
+        .platform-auth .auth-visual {
+          background:
+            radial-gradient(ellipse 70% 55% at 20% 20%, rgba(90, 140, 200, 0.18), transparent 55%),
+            linear-gradient(165deg, #0a0e14 0%, #121820 50%, #0c1016 100%);
+        }
+        .platform-auth .mark {
+          background: rgba(120, 160, 210, 0.18);
+          color: #9bb8d9;
+        }
+        .platform-auth .cas-btn-primary {
+          background: #6b8fbd;
+          color: #0a0e14;
+        }
+        .platform-auth .page-eyebrow { color: #9bb8d9; }
+      `}</style>
       <div className="auth-visual">
         <div className="auth-hero">
-          <p className="page-eyebrow">Casora for cafes</p>
-          <h1>Your cafe desk</h1>
+          <p className="page-eyebrow">Casora Platform</p>
+          <h1>Operate every cafe</h1>
           <p>
-            Floor, kitchen, inventory, and payment verification — branded for your cafe, powered by
-            Casora.
+            Provision tenants, review leads, monitor health, and support cafe teams from one control
+            plane.
           </p>
         </div>
       </div>
       <div className="auth-panel">
         <div className="auth-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "1.25rem" }}>
-            <span className="mark">C</span>
+            <span className="mark">P</span>
             <div>
-              <strong style={{ display: "block", fontSize: "0.9rem" }}>Casora for cafes</strong>
+              <strong style={{ display: "block", fontSize: "0.9rem" }}>Casora Platform</strong>
               <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
-                Cafe staff sign-in
+                Internal operators only
               </span>
             </div>
           </div>
-          <h2>Sign in</h2>
-          <p className="sub">Demo: manager / admin123 · waiter1 / admin123</p>
+          <h2>Platform sign-in</h2>
+          <p className="sub">Cafe staff: use Try cafe demo on the home page.</p>
           {message && <div className="cas-alert cas-alert-warning">{message}</div>}
-          {session?.user && (cafeMissing || sp.error === "cafe") && (
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/login" });
-              }}
-              style={{ marginBottom: "1rem" }}
-            >
-              <button type="submit" className="cas-btn cas-btn-ghost cas-btn-block">
-                Sign out and try another account
-              </button>
-            </form>
-          )}
           <form
             action={async (formData) => {
               "use server";
               const username = String(formData.get("username") || "").trim();
               const password = String(formData.get("password") || "");
               const sessionBefore = await auth();
-              if (
-                sessionBefore?.user &&
-                sessionBefore.user.role !== "platform_admin" &&
-                sessionBefore.user.cafeId == null
-              ) {
-                await signOut({ redirect: false });
-              }
-              if (sessionBefore?.user?.role === "platform_admin") {
+              if (sessionBefore?.user) {
                 await signOut({ redirect: false });
               }
               await signIn("credentials", {
                 username,
                 password,
-                audience: "cafe",
-                redirectTo: "/dashboard",
+                audience: "platform",
+                redirectTo: "/platform",
               });
             }}
           >
@@ -116,11 +104,13 @@ export default async function CafeLoginPage({
               />
             </div>
             <button type="submit" className="cas-btn cas-btn-primary cas-btn-block">
-              Login
+              Enter platform
             </button>
           </form>
           <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
             <Link href="/">← Back to home</Link>
+            {" · "}
+            <Link href="/login">Cafe sign-in</Link>
           </p>
         </div>
       </div>
