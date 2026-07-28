@@ -1,0 +1,380 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  manager
+  auditor
+  server
+  kitchen
+  staff
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum TableStatus {
+  available
+  occupied
+  ordering
+  bill_requested
+  waiter_requested
+}
+
+enum OrderSource {
+  qr
+  server
+}
+
+enum OrderStatus {
+  pending
+  committed
+  preparing
+  served
+  paid
+  cancelled
+}
+
+enum ItemStatus {
+  pending
+  committed
+  preparing
+  served
+  cancelled
+}
+
+enum PaymentMethod {
+  telebirr
+  bank
+}
+
+enum PaymentStatus {
+  pending
+  approved
+  rejected
+}
+
+enum WasteReason {
+  expired
+  damaged
+  spilled
+  other
+}
+
+enum ShiftStatus {
+  open
+  closed
+}
+
+enum PoStatus {
+  pending
+  received
+  cancelled
+}
+
+model User {
+  id           Int        @id @default(autoincrement()) @map("user_id")
+  username     String     @unique @db.VarChar(50)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  fullName     String     @map("full_name") @db.VarChar(100)
+  role         Role
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  loginLogs          LoginLog[]
+  shifts             Shift[]            @relation("ShiftStaff")
+  openedShifts       Shift[]            @relation("ShiftOpener")
+  sales              Sale[]
+  auditLogs          AuditLog[]
+  wasteLogs          WasteLog[]
+  purchaseOrders     PurchaseOrder[]
+  servedOrders       Order[]            @relation("OrderServer")
+  reviewedPayments   PaymentSubmission[] @relation("PaymentReviewer")
+  assignedRequests   WaiterRequest[]    @relation("WaiterAssignee")
+
+  @@map("users")
+}
+
+model LoginLog {
+  id        Int      @id @default(autoincrement()) @map("log_id")
+  userId    Int      @map("user_id")
+  action    String   @db.VarChar(20)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("login_logs")
+}
+
+model Supplier {
+  id          Int        @id @default(autoincrement()) @map("sup_id")
+  name        String     @db.VarChar(100)
+  contactInfo String?    @map("contact_info") @db.VarChar(100)
+  email       String?    @db.VarChar(100)
+  status      UserStatus @default(active)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  inventory   Inventory[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Category {
+  id       Int       @id @default(autoincrement()) @map("cat_id")
+  name     String    @unique @db.VarChar(80)
+  products Product[]
+
+  @@map("categories")
+}
+
+model Inventory {
+  id           Int       @id @default(autoincrement()) @map("item_id")
+  name         String    @db.VarChar(100)
+  unit         String    @default("unit") @db.VarChar(20)
+  currentQty   Decimal   @default(0) @map("current_qty") @db.Decimal(12, 2)
+  minThreshold Decimal   @default(0) @map("min_threshold") @db.Decimal(12, 2)
+  unitCost     Decimal   @default(0) @map("unit_cost") @db.Decimal(12, 2)
+  supplierId   Int?      @map("sup_id")
+  status       UserStatus @default(active)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  supplier     Supplier? @relation(fields: [supplierId], references: [id])
+  recipes      Recipe[]
+  auditLogs    AuditLog[]
+  wasteLogs    WasteLog[]
+  purchaseOrders PurchaseOrder[]
+  openingQuantities OpeningQuantity[]
+
+  @@map("inventory")
+}
+
+model Product {
+  id          Int       @id @default(autoincrement()) @map("product_id")
+  name        String    @db.VarChar(100)
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  categoryId  Int?      @map("cat_id")
+  status      UserStatus @default(active)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  category    Category? @relation(fields: [categoryId], references: [id])
+  recipes     Recipe[]
+  orderItems  OrderItem[]
+  sales       Sale[]
+
+  @@map("products")
+}
+
+model Recipe {
+  id        Int       @id @default(autoincrement()) @map("recipe_id")
+  productId Int       @map("product_id")
+  itemId    Int       @map("item_id")
+  qtyNeeded Decimal   @map("qty_needed") @db.Decimal(12, 2)
+  product   Product   @relation(fields: [productId], references: [id])
+  item      Inventory @relation(fields: [itemId], references: [id])
+
+  @@unique([productId, itemId])
+  @@map("recipes")
+}
+
+model Shift {
+  id          Int         @id @default(autoincrement()) @map("shift_id")
+  userId      Int         @map("user_id")
+  openedBy    Int         @map("opened_by")
+  openedAt    DateTime    @default(now()) @map("opened_at")
+  closedAt    DateTime?   @map("closed_at")
+  status      ShiftStatus @default(open)
+  autoManaged Boolean     @default(false) @map("auto_managed")
+  notes       String?
+  user        User        @relation("ShiftStaff", fields: [userId], references: [id])
+  opener      User        @relation("ShiftOpener", fields: [openedBy], references: [id])
+  sales       Sale[]
+  auditLogs   AuditLog[]
+  wasteLogs   WasteLog[]
+  orders      Order[]
+  openingQuantities OpeningQuantity[]
+
+  @@map("shifts")
+}
+
+model OpeningQuantity {
+  id         Int       @id @default(autoincrement()) @map("opening_id")
+  shiftId    Int       @map("shift_id")
+  itemId     Int       @map("item_id")
+  openingQty Decimal   @map("opening_qty") @db.Decimal(12, 2)
+  recordedAt DateTime  @default(now()) @map("recorded_at")
+  shift      Shift     @relation(fields: [shiftId], references: [id])
+  item       Inventory @relation(fields: [itemId], references: [id])
+
+  @@unique([shiftId, itemId])
+  @@map("opening_quantities")
+}
+
+model RestaurantTable {
+  id           Int         @id @default(autoincrement()) @map("table_id")
+  tableNumber  String      @unique @map("table_number") @db.VarChar(10)
+  qrToken      String      @unique @map("qr_token") @db.VarChar(64)
+  status       TableStatus @default(available)
+  capacity     Int         @default(4)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  orders       Order[]
+  waiterRequests WaiterRequest[]
+  payments     PaymentSubmission[]
+  sales        Sale[]
+
+  @@map("restaurant_tables")
+}
+
+model WaiterRequest {
+  id             Int       @id @default(autoincrement()) @map("request_id")
+  tableId        Int       @map("table_id")
+  status         String    @default("pending") @db.VarChar(20)
+  assignedUserId Int?      @map("assigned_user_id")
+  requestedAt    DateTime  @default(now()) @map("requested_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  completedAt    DateTime? @map("completed_at")
+  table          RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  assignee       User?     @relation("WaiterAssignee", fields: [assignedUserId], references: [id])
+
+  @@map("waiter_requests")
+}
+
+model Order {
+  id           Int         @id @default(autoincrement()) @map("order_id")
+  tableId      Int         @map("table_id")
+  orderSource  OrderSource @default(qr) @map("order_source")
+  serverUserId Int?        @map("server_user_id")
+  status       OrderStatus @default(pending)
+  subtotal     Decimal     @default(0) @db.Decimal(12, 2)
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  paidAt       DateTime?   @map("paid_at")
+  shiftId      Int?        @map("shift_id")
+  table        RestaurantTable @relation(fields: [tableId], references: [id])
+  server       User?       @relation("OrderServer", fields: [serverUserId], references: [id])
+  shift        Shift?      @relation(fields: [shiftId], references: [id])
+  items        OrderItem[]
+  sales        Sale[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int        @id @default(autoincrement()) @map("order_item_id")
+  orderId    Int        @map("order_id")
+  productId  Int        @map("product_id")
+  qty        Int
+  unitPrice  Decimal    @map("unit_price") @db.Decimal(10, 2)
+  lineTotal  Decimal    @map("line_total") @db.Decimal(12, 2)
+  itemStatus ItemStatus @default(pending) @map("item_status")
+  notes      String?    @db.VarChar(255)
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Sale {
+  id         Int       @id @default(autoincrement()) @map("sale_id")
+  productId  Int       @map("product_id")
+  qtySold    Int       @map("qty_sold")
+  unitPrice  Decimal   @map("unit_price") @db.Decimal(10, 2)
+  total      Decimal   @db.Decimal(12, 2)
+  shiftId    Int       @map("shift_id")
+  userId     Int       @map("user_id")
+  orderId    Int?      @map("order_id")
+  tableId    Int?      @map("table_id")
+  soldAt     DateTime  @default(now()) @map("sold_at")
+  product    Product   @relation(fields: [productId], references: [id])
+  shift      Shift     @relation(fields: [shiftId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+  order      Order?    @relation(fields: [orderId], references: [id])
+  table      RestaurantTable? @relation(fields: [tableId], references: [id])
+
+  @@map("sales")
+}
+
+model AuditLog {
+  id           Int       @id @default(autoincrement()) @map("audit_id")
+  itemId       Int       @map("item_id")
+  systemQty    Decimal   @map("system_qty") @db.Decimal(12, 2)
+  physicalQty  Decimal   @map("physical_qty") @db.Decimal(12, 2)
+  discrepancy  Decimal   @db.Decimal(12, 2)
+  variancePct  Decimal?  @map("variance_pct") @db.Decimal(8, 2)
+  shiftId      Int?      @map("shift_id")
+  userId       Int       @map("user_id")
+  comments     String?
+  auditedAt    DateTime  @default(now()) @map("audited_at")
+  item         Inventory @relation(fields: [itemId], references: [id])
+  shift        Shift?    @relation(fields: [shiftId], references: [id])
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model WasteLog {
+  id        Int         @id @default(autoincrement()) @map("waste_id")
+  itemId    Int         @map("item_id")
+  wasteQty  Decimal     @map("waste_qty") @db.Decimal(12, 2)
+  reason    WasteReason
+  shiftId   Int?        @map("shift_id")
+  userId    Int         @map("user_id")
+  loggedAt  DateTime    @default(now()) @map("logged_at")
+  item      Inventory   @relation(fields: [itemId], references: [id])
+  shift     Shift?      @relation(fields: [shiftId], references: [id])
+  user      User        @relation(fields: [userId], references: [id])
+
+  @@map("waste_logs")
+}
+
+model PurchaseOrder {
+  id               Int       @id @default(autoincrement()) @map("po_id")
+  itemId           Int       @map("item_id")
+  supplierId       Int       @map("sup_id")
+  orderedQty       Decimal   @map("ordered_qty") @db.Decimal(12, 2)
+  unitCost         Decimal   @default(0) @map("unit_cost") @db.Decimal(12, 2)
+  totalCost        Decimal   @default(0) @map("total_cost") @db.Decimal(12, 2)
+  expectedDelivery DateTime? @map("expected_delivery") @db.Date
+  status           PoStatus  @default(pending)
+  createdBy        Int       @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  receivedAt       DateTime? @map("received_at")
+  item             Inventory @relation(fields: [itemId], references: [id])
+  supplier         Supplier  @relation(fields: [supplierId], references: [id])
+  creator          User      @relation(fields: [createdBy], references: [id])
+
+  @@map("purchase_orders")
+}
+
+model PaymentSubmission {
+  id              Int           @id @default(autoincrement()) @map("submission_id")
+  tableId         Int           @map("table_id")
+  amountExpected  Decimal       @map("amount_expected") @db.Decimal(12, 2)
+  amountClaimed   Decimal       @map("amount_claimed") @db.Decimal(12, 2)
+  tipAmount       Decimal       @default(0) @map("tip_amount") @db.Decimal(12, 2)
+  paymentMethod   PaymentMethod @map("payment_method")
+  referenceNumber String        @unique @map("reference_number") @db.VarChar(64)
+  senderPhone     String?       @map("sender_phone") @db.VarChar(20)
+  screenshotUrl   String        @map("screenshot_url") @db.VarChar(500)
+  screenshotHash  String        @map("screenshot_hash") @db.VarChar(64)
+  tableToken      String        @map("table_token") @db.VarChar(64)
+  ipAddress       String?       @map("ip_address") @db.VarChar(45)
+  status          PaymentStatus @default(pending)
+  reviewedById    Int?          @map("reviewed_by")
+  reviewNotes     String?       @map("review_notes")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  reviewedAt      DateTime?     @map("reviewed_at")
+  table           RestaurantTable @relation(fields: [tableId], references: [id])
+  reviewer        User?         @relation("PaymentReviewer", fields: [reviewedById], references: [id])
+
+  @@map("payment_submissions")
+}

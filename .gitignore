@@ -41,3 +41,13 @@ deployment/cloud/db_data/
 # Logs
 *.log
 apache/logs/
+
+# Next.js / Vercel web app
+web/node_modules/
+web/.next/
+web/.env
+web/.env.local
+web/.env*.local
+web/src/generated/
+web/.agents/
+web/skills-lock.json
