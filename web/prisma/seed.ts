@@ -4,8 +4,61 @@ import { randomBytes } from "crypto";
 
 const prisma = new PrismaClient();
 
+async function ensureCafe() {
+  let cafe = await prisma.cafe.findUnique({ where: { slug: "demo" } });
+  if (!cafe) {
+    cafe = await prisma.cafe.create({
+      data: {
+        name: "Demo Cafe",
+        slug: "demo",
+        contactEmail: "demo@cafe-audit.local",
+        contactPhone: "+251911000000",
+        status: "active",
+        notes: "Default demo tenant",
+      },
+    });
+  }
+
+  await prisma.cafeSettings.upsert({
+    where: { cafeId: cafe.id },
+    update: {},
+    create: {
+      cafeId: cafe.id,
+      telebirrNumber: "0912345678",
+      telebirrName: "Demo Cafe",
+      bankName: "Commercial Bank of Ethiopia (CBE)",
+      bankAccount: "1000123456789",
+      bankAccountName: "Demo Cafe PLC",
+      instructions:
+        "Pay the exact total shown on your receipt. Upload your Telebirr or bank screenshot with the reference number.",
+    },
+  });
+
+  return cafe;
+}
+
 async function main() {
   const passwordHash = await bcrypt.hash("admin123", 12);
+  const cafe = await ensureCafe();
+
+  await prisma.user.upsert({
+    where: { username: "platform" },
+    update: {
+      passwordHash,
+      fullName: "Platform Admin",
+      role: "platform_admin",
+      status: "active",
+      cafeId: null,
+    },
+    create: {
+      username: "platform",
+      fullName: "Platform Admin",
+      role: "platform_admin",
+      passwordHash,
+      status: "active",
+      cafeId: null,
+    },
+  });
 
   const users: { username: string; fullName: string; role: Role }[] = [
     { username: "admin", fullName: "System Admin", role: "admin" },
@@ -19,28 +72,41 @@ async function main() {
   for (const u of users) {
     await prisma.user.upsert({
       where: { username: u.username },
-      update: { passwordHash, fullName: u.fullName, role: u.role, status: "active" },
-      create: { ...u, passwordHash, status: "active" },
+      update: {
+        passwordHash,
+        fullName: u.fullName,
+        role: u.role,
+        status: "active",
+        cafeId: cafe.id,
+      },
+      create: { ...u, passwordHash, status: "active", cafeId: cafe.id },
     });
   }
 
   const cats = ["Hot Drinks", "Cold Drinks", "Food", "Desserts"];
   for (const name of cats) {
     await prisma.category.upsert({
-      where: { name },
+      where: { cafeId_name: { cafeId: cafe.id, name } },
       update: {},
-      create: { name },
+      create: { name, cafeId: cafe.id },
     });
   }
 
-  const hot = await prisma.category.findUniqueOrThrow({ where: { name: "Hot Drinks" } });
-  const cold = await prisma.category.findUniqueOrThrow({ where: { name: "Cold Drinks" } });
-  const food = await prisma.category.findUniqueOrThrow({ where: { name: "Food" } });
+  const hot = await prisma.category.findUniqueOrThrow({
+    where: { cafeId_name: { cafeId: cafe.id, name: "Hot Drinks" } },
+  });
+  const cold = await prisma.category.findUniqueOrThrow({
+    where: { cafeId_name: { cafeId: cafe.id, name: "Cold Drinks" } },
+  });
+  const food = await prisma.category.findUniqueOrThrow({
+    where: { cafeId_name: { cafeId: cafe.id, name: "Food" } },
+  });
 
-  let supplier = await prisma.supplier.findFirst();
+  let supplier = await prisma.supplier.findFirst({ where: { cafeId: cafe.id } });
   if (!supplier) {
     supplier = await prisma.supplier.create({
       data: {
+        cafeId: cafe.id,
         name: "Ethio Coffee Suppliers",
         contactInfo: "+251-911-000001",
         email: "orders@ethiocoffee.et",
@@ -58,33 +124,89 @@ async function main() {
   ];
 
   for (const item of invDefs) {
-    const existing = await prisma.inventory.findFirst({ where: { name: item.name } });
+    const existing = await prisma.inventory.findFirst({
+      where: { cafeId: cafe.id, name: item.name },
+    });
     if (!existing) {
       await prisma.inventory.create({
-        data: { ...item, supplierId: supplier.id },
+        data: { ...item, supplierId: supplier.id, cafeId: cafe.id },
       });
     }
   }
 
-  const coffee = await prisma.inventory.findFirstOrThrow({ where: { name: "Arabica Coffee Beans" } });
-  const milk = await prisma.inventory.findFirstOrThrow({ where: { name: "Whole Milk" } });
-  const sugar = await prisma.inventory.findFirstOrThrow({ where: { name: "Sugar" } });
-  const cups = await prisma.inventory.findFirstOrThrow({ where: { name: "Paper Cups (12oz)" } });
-  const dough = await prisma.inventory.findFirstOrThrow({ where: { name: "Croissant Dough" } });
+  const coffee = await prisma.inventory.findFirstOrThrow({
+    where: { cafeId: cafe.id, name: "Arabica Coffee Beans" },
+  });
+  const milk = await prisma.inventory.findFirstOrThrow({
+    where: { cafeId: cafe.id, name: "Whole Milk" },
+  });
+  const sugar = await prisma.inventory.findFirstOrThrow({
+    where: { cafeId: cafe.id, name: "Sugar" },
+  });
+  const cups = await prisma.inventory.findFirstOrThrow({
+    where: { cafeId: cafe.id, name: "Paper Cups (12oz)" },
+  });
+  const dough = await prisma.inventory.findFirstOrThrow({
+    where: { cafeId: cafe.id, name: "Croissant Dough" },
+  });
 
   const productDefs = [
-    { name: "Espresso", price: 35, categoryId: hot.id, recipes: [[coffee.id, 0.018], [sugar.id, 0.005]] as [number, number][] },
-    { name: "Cappuccino", price: 45, categoryId: hot.id, recipes: [[coffee.id, 0.018], [milk.id, 0.15], [sugar.id, 0.008], [cups.id, 1]] as [number, number][] },
-    { name: "Latte", price: 50, categoryId: hot.id, recipes: [[coffee.id, 0.018], [milk.id, 0.25], [cups.id, 1]] as [number, number][] },
-    { name: "Iced Latte", price: 55, categoryId: cold.id, recipes: [[coffee.id, 0.018], [milk.id, 0.2], [cups.id, 1]] as [number, number][] },
-    { name: "Croissant", price: 40, categoryId: food.id, recipes: [[dough.id, 1]] as [number, number][] },
+    {
+      name: "Espresso",
+      price: 35,
+      categoryId: hot.id,
+      recipes: [
+        [coffee.id, 0.018],
+        [sugar.id, 0.005],
+      ] as [number, number][],
+    },
+    {
+      name: "Cappuccino",
+      price: 45,
+      categoryId: hot.id,
+      recipes: [
+        [coffee.id, 0.018],
+        [milk.id, 0.15],
+        [sugar.id, 0.008],
+        [cups.id, 1],
+      ] as [number, number][],
+    },
+    {
+      name: "Latte",
+      price: 50,
+      categoryId: hot.id,
+      recipes: [
+        [coffee.id, 0.018],
+        [milk.id, 0.25],
+        [cups.id, 1],
+      ] as [number, number][],
+    },
+    {
+      name: "Iced Latte",
+      price: 55,
+      categoryId: cold.id,
+      recipes: [
+        [coffee.id, 0.018],
+        [milk.id, 0.2],
+        [cups.id, 1],
+      ] as [number, number][],
+    },
+    {
+      name: "Croissant",
+      price: 40,
+      categoryId: food.id,
+      recipes: [[dough.id, 1]] as [number, number][],
+    },
   ];
 
   for (const p of productDefs) {
-    let product = await prisma.product.findFirst({ where: { name: p.name } });
+    let product = await prisma.product.findFirst({
+      where: { cafeId: cafe.id, name: p.name },
+    });
     if (!product) {
       product = await prisma.product.create({
         data: {
+          cafeId: cafe.id,
           name: p.name,
           price: p.price,
           categoryId: p.categoryId,
@@ -101,11 +223,12 @@ async function main() {
     }
   }
 
-  const tableCount = await prisma.restaurantTable.count();
+  const tableCount = await prisma.restaurantTable.count({ where: { cafeId: cafe.id } });
   if (tableCount === 0) {
     for (let i = 1; i <= 8; i++) {
       await prisma.restaurantTable.create({
         data: {
+          cafeId: cafe.id,
           tableNumber: `T${String(i).padStart(2, "0")}`,
           qrToken: randomBytes(16).toString("hex"),
           capacity: i <= 2 ? 2 : i === 7 ? 8 : 4,
@@ -114,7 +237,30 @@ async function main() {
     }
   }
 
-  console.log("Seed complete. Demo password for all users: admin123");
+  // Backfill any orphan rows still missing cafeId
+  await prisma.$executeRawUnsafe(`UPDATE users SET cafe_id = ${cafe.id} WHERE cafe_id IS NULL AND role <> 'platform_admin'`);
+  for (const t of [
+    "suppliers",
+    "categories",
+    "inventory",
+    "products",
+    "shifts",
+    "restaurant_tables",
+    "waiter_requests",
+    "orders",
+    "sales",
+    "audit_logs",
+    "waste_logs",
+    "purchase_orders",
+    "payment_submissions",
+    "login_logs",
+  ]) {
+    await prisma.$executeRawUnsafe(`UPDATE ${t} SET cafe_id = ${cafe.id} WHERE cafe_id IS NULL`);
+  }
+
+  console.log("Seed complete.");
+  console.log("  Platform: platform / admin123");
+  console.log("  Demo cafe: manager / admin123 (and admin, auditor, waiter1, cashier1, kitchen1)");
 }
 
 main()

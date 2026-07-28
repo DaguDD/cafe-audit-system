@@ -8,13 +8,14 @@ import { revalidatePath } from "next/cache";
 import { Decimal } from "@prisma/client/runtime/library";
 
 export default async function AuditPage() {
-  await requireRoles(["admin", "manager", "auditor"]);
+  const user = await requireRoles(["admin", "manager", "auditor"]);
   const threshold = Number(process.env.VARIANCE_THRESHOLD_PCT || 10);
   const items = await prisma.inventory.findMany({
-    where: { status: "active" },
+    where: { cafeId: user.cafeId, status: "active" },
     orderBy: { name: "asc" },
   });
   const recent = await prisma.auditLog.findMany({
+    where: { cafeId: user.cafeId },
     take: 15,
     orderBy: { auditedAt: "desc" },
     include: { item: true, user: true },
@@ -26,7 +27,7 @@ export default async function AuditPage() {
     const itemId = Number(formData.get("itemId"));
     const physical = Number(formData.get("physical"));
     const comments = String(formData.get("comments") || "");
-    const item = await prisma.inventory.findUniqueOrThrow({ where: { id: itemId } });
+    const item = await prisma.inventory.findFirstOrThrow({ where: { id: itemId, cafeId: user.cafeId } });
     const system = Number(item.currentQty);
     const discrepancy = physical - system;
     const vp = variancePct(system, physical);
@@ -34,6 +35,7 @@ export default async function AuditPage() {
     await prisma.$transaction([
       prisma.auditLog.create({
         data: {
+          cafeId: user.cafeId,
           itemId,
           systemQty: system,
           physicalQty: physical,
@@ -50,53 +52,79 @@ export default async function AuditPage() {
     ]);
     revalidatePath("/audit");
     revalidatePath("/inventory");
+    revalidatePath("/reports");
+    revalidatePath("/dashboard");
   }
 
   return (
-    <AppShell title="Stock Audit">
-      <p className="mb-4 text-sm text-[#a89f94]">
-        Compare physical count to system quantity. Items with variance above {threshold}% are flagged.
-      </p>
-      <form action={submitAudit} className="mb-8 grid gap-2 rounded-xl border border-[#3d352c] bg-[#1a1714] p-4 sm:grid-cols-4">
-        <select name="itemId" required className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm">
-          {items.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name} (sys {Number(i.currentQty).toFixed(2)} {i.unit})
-            </option>
-          ))}
-        </select>
-        <input name="physical" type="number" step="0.01" required placeholder="Physical qty" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="comments" placeholder="Comments" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <button className="rounded bg-[#e8954a] px-3 py-2 text-sm font-medium text-[#12100e]">Submit audit</button>
-      </form>
+    <AppShell
+      title="Reconciliation"
+      eyebrow="Audit"
+      lead={`Compare physical count to system quantity. Variance above ${threshold}% is flagged.`}
+    >
+      <div className="glass-panel" style={{ marginBottom: "0.85rem" }}>
+        <div className="panel-head">
+          <h3>Submit audit</h3>
+        </div>
+        <div className="panel-body">
+          <form action={submitAudit} className="form-row cols-4">
+            <select name="itemId" required className="cas-select">
+              {items.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name} (sys {Number(i.currentQty).toFixed(2)} {i.unit})
+                </option>
+              ))}
+            </select>
+            <input
+              name="physical"
+              type="number"
+              step="0.01"
+              required
+              placeholder="Physical qty"
+              className="cas-input"
+            />
+            <input name="comments" placeholder="Comments" className="cas-input" />
+            <button className="cas-btn cas-btn-primary">Submit audit</button>
+          </form>
+        </div>
+      </div>
 
-      <h2 className="mb-2 text-lg font-medium">Recent audits</h2>
-      <div className="overflow-x-auto rounded-xl border border-[#3d352c]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#1a1714] text-[#a89f94]">
+      <div className="glass-panel">
+        <div className="panel-head">
+          <h3>Recent audits</h3>
+        </div>
+        <table className="cas-table">
+          <thead>
             <tr>
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2">System</th>
-              <th className="px-3 py-2">Physical</th>
-              <th className="px-3 py-2">Variance %</th>
-              <th className="px-3 py-2">By</th>
+              <th>Item</th>
+              <th>System</th>
+              <th>Physical</th>
+              <th>Variance %</th>
+              <th>By</th>
             </tr>
           </thead>
           <tbody>
             {recent.map((a) => {
               const high = Number(a.variancePct || 0) > threshold;
               return (
-                <tr key={a.id} className="border-t border-[#3d352c]">
-                  <td className="px-3 py-2">{a.item.name}</td>
-                  <td className="px-3 py-2">{Number(a.systemQty).toFixed(2)}</td>
-                  <td className="px-3 py-2">{Number(a.physicalQty).toFixed(2)}</td>
-                  <td className={`px-3 py-2 ${high ? "text-red-300 font-medium" : ""}`}>
+                <tr key={a.id}>
+                  <td>{a.item.name}</td>
+                  <td className="font-mono">{Number(a.systemQty).toFixed(2)}</td>
+                  <td className="font-mono">{Number(a.physicalQty).toFixed(2)}</td>
+                  <td className={`font-mono ${high ? "text-danger" : ""}`}>
                     {Number(a.variancePct || 0).toFixed(1)}%{high ? " ⚠" : ""}
                   </td>
-                  <td className="px-3 py-2">{a.user.fullName}</td>
+                  <td>{a.user.fullName}</td>
                 </tr>
               );
             })}
+            {recent.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ color: "var(--text-muted)" }}>
+                  No audits yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

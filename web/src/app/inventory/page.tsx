@@ -4,19 +4,23 @@ import AppShell from "@/components/AppShell";
 import { requireRoles, money } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { Decimal } from "@prisma/client/runtime/library";
 
 export default async function InventoryPage() {
-  await requireRoles(["admin", "manager", "auditor", "kitchen"]);
+  const user = await requireRoles(["admin", "manager", "auditor", "kitchen"]);
+  const cafeId = user.cafeId;
   const items = await prisma.inventory.findMany({
+    where: { cafeId },
     orderBy: { name: "asc" },
     include: { supplier: true },
   });
 
   async function addItem(formData: FormData) {
     "use server";
-    await requireRoles(["admin", "manager"]);
+    const u = await requireRoles(["admin", "manager"]);
     await prisma.inventory.create({
       data: {
+        cafeId: u.cafeId,
         name: String(formData.get("name") || "").trim(),
         unit: String(formData.get("unit") || "unit"),
         currentQty: Number(formData.get("qty") || 0),
@@ -27,41 +31,121 @@ export default async function InventoryPage() {
     revalidatePath("/inventory");
   }
 
+  async function updateItem(formData: FormData) {
+    "use server";
+    const u = await requireRoles(["admin", "manager", "auditor"]);
+    const id = Number(formData.get("id"));
+    await prisma.inventory.updateMany({
+      where: { id, cafeId: u.cafeId },
+      data: {
+        name: String(formData.get("name") || "").trim(),
+        unit: String(formData.get("unit") || "unit"),
+        currentQty: new Decimal(Number(formData.get("qty") || 0)),
+        minThreshold: new Decimal(Number(formData.get("min") || 0)),
+        unitCost: new Decimal(Number(formData.get("cost") || 0)),
+      },
+    });
+    revalidatePath("/inventory");
+  }
+
   return (
-    <AppShell title="Inventory">
-      <form action={addItem} className="mb-6 grid gap-2 rounded-xl border border-[#3d352c] bg-[#1a1714] p-4 sm:grid-cols-5">
-        <input name="name" placeholder="Item name" required className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="unit" placeholder="Unit" defaultValue="kg" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="qty" type="number" step="0.01" placeholder="Qty" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <input name="min" type="number" step="0.01" placeholder="Min" className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-2 text-sm" />
-        <button className="rounded bg-[#e8954a] px-3 py-2 text-sm font-medium text-[#12100e]">Add item</button>
-      </form>
-      <div className="overflow-x-auto rounded-xl border border-[#3d352c]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#1a1714] text-[#a89f94]">
+    <AppShell title="Inventory" eyebrow="Stock" lead="Track on-hand quantities and reorder thresholds.">
+      <div className="glass-panel" style={{ marginBottom: "0.85rem" }}>
+        <div className="panel-head">
+          <h3>Add item</h3>
+        </div>
+        <div className="panel-body">
+          <form action={addItem} className="form-row cols-4">
+            <input name="name" placeholder="Item name" required className="cas-input" />
+            <input name="unit" placeholder="Unit" defaultValue="kg" className="cas-input" />
+            <input name="qty" type="number" step="0.01" placeholder="Qty" className="cas-input" />
+            <input name="min" type="number" step="0.01" placeholder="Min" className="cas-input" />
+            <input name="cost" type="number" step="0.01" placeholder="Unit cost" className="cas-input" />
+            <button className="cas-btn cas-btn-primary">Add item</button>
+          </form>
+        </div>
+      </div>
+
+      <div className="glass-panel">
+        <div className="panel-head">
+          <h3>Stock list</h3>
+          <span className="badge">{items.length} items</span>
+        </div>
+        <table className="cas-table">
+          <thead>
             <tr>
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2">Qty</th>
-              <th className="px-3 py-2">Min</th>
-              <th className="px-3 py-2">Unit cost</th>
-              <th className="px-3 py-2">Status</th>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Min</th>
+              <th>Unit cost</th>
+              <th>Status</th>
+              <th>Edit</th>
             </tr>
           </thead>
           <tbody>
             {items.map((i) => {
               const low = Number(i.currentQty) <= Number(i.minThreshold);
               return (
-                <tr key={i.id} className="border-t border-[#3d352c]">
-                  <td className="px-3 py-2">{i.name} <span className="text-[#a89f94]">({i.unit})</span></td>
-                  <td className={`px-3 py-2 ${low ? "text-red-300" : ""}`}>{Number(i.currentQty).toFixed(2)}</td>
-                  <td className="px-3 py-2">{Number(i.minThreshold).toFixed(2)}</td>
-                  <td className="px-3 py-2">{money(i.unitCost)}</td>
-                  <td className="px-3 py-2">{low ? "Low stock" : "OK"}</td>
+                <tr key={i.id}>
+                  <td colSpan={6} style={{ padding: 0 }}>
+                    <form
+                      action={updateItem}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1.4fr 0.7fr 0.7fr 0.9fr 0.7fr auto",
+                        gap: "0.4rem",
+                        padding: "0.55rem 0.75rem",
+                        alignItems: "center",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <input type="hidden" name="id" value={i.id} />
+                      <div>
+                        <input name="name" defaultValue={i.name} className="cas-input" />
+                        <input
+                          name="unit"
+                          defaultValue={i.unit}
+                          className="cas-input"
+                          style={{ marginTop: 4, maxWidth: 90 }}
+                        />
+                      </div>
+                      <input
+                        name="qty"
+                        type="number"
+                        step="0.01"
+                        defaultValue={Number(i.currentQty)}
+                        className={`cas-input ${low ? "text-danger" : ""}`}
+                      />
+                      <input
+                        name="min"
+                        type="number"
+                        step="0.01"
+                        defaultValue={Number(i.minThreshold)}
+                        className="cas-input"
+                      />
+                      <input
+                        name="cost"
+                        type="number"
+                        step="0.01"
+                        defaultValue={Number(i.unitCost)}
+                        className="cas-input"
+                      />
+                      <span className={`badge ${low ? "badge-danger" : "badge-success"}`}>
+                        {low ? "Low" : "OK"}
+                      </span>
+                      <button className="cas-btn cas-btn-ghost cas-btn-sm">Save</button>
+                    </form>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {items.length === 0 && (
+          <div className="panel-body" style={{ color: "var(--text-muted)" }}>
+            No inventory items yet. {money(0)}
+          </div>
+        )}
       </div>
     </AppShell>
   );

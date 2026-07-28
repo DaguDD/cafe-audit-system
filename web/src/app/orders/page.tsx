@@ -7,9 +7,9 @@ import { revalidatePath } from "next/cache";
 import { deductRecipes } from "@/lib/inventory";
 
 export default async function OrdersPage() {
-  await requireRoles(["admin", "manager", "server"]);
+  const user = await requireRoles(["admin", "manager", "server"]);
   const orders = await prisma.order.findMany({
-    where: { status: { notIn: ["cancelled"] } },
+    where: { cafeId: user.cafeId, status: { notIn: ["cancelled"] } },
     orderBy: { createdAt: "desc" },
     take: 40,
     include: { table: true, items: { include: { product: true } } },
@@ -20,18 +20,19 @@ export default async function OrdersPage() {
     const user = await requireRoles(["admin", "manager", "server"]);
     const id = Number(formData.get("id"));
     const status = String(formData.get("status"));
-    const order = await prisma.order.findUniqueOrThrow({
-      where: { id },
+    const order = await prisma.order.findFirstOrThrow({
+      where: { id, cafeId: user.cafeId },
       include: { items: true },
     });
 
     if (status === "paid" && order.status !== "paid") {
       const shift =
         (await prisma.shift.findFirst({
-          where: { userId: Number(user.id), status: "open" },
+          where: { cafeId: user.cafeId, userId: Number(user.id), status: "open" },
         })) ||
         (await prisma.shift.create({
           data: {
+            cafeId: user.cafeId,
             userId: Number(user.id),
             openedBy: Number(user.id),
             autoManaged: true,
@@ -42,6 +43,7 @@ export default async function OrdersPage() {
       for (const item of order.items) {
         await prisma.sale.create({
           data: {
+            cafeId: user.cafeId,
             productId: item.productId,
             qtySold: item.qty,
             unitPrice: item.unitPrice,
@@ -64,7 +66,9 @@ export default async function OrdersPage() {
     } else {
       await prisma.order.update({
         where: { id },
-        data: { status: status as "pending" | "committed" | "preparing" | "served" | "cancelled" },
+        data: {
+          status: status as "pending" | "committed" | "preparing" | "served" | "cancelled",
+        },
       });
     }
     revalidatePath("/orders");
@@ -73,39 +77,44 @@ export default async function OrdersPage() {
   }
 
   return (
-    <AppShell title="Orders">
-      <div className="space-y-4">
+    <AppShell title="Active Tables" eyebrow="Orders" lead="Open table orders and status updates.">
+      <div style={{ display: "grid", gap: "0.75rem" }}>
         {orders.map((o) => (
-          <div key={o.id} className="rounded-xl border border-[#3d352c] bg-[#1a1714] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-medium">
-                  #{o.id} · {o.table.tableNumber} · {o.orderSource}
-                </p>
-                <p className="text-sm text-[#a89f94]">
-                  {o.status} · {money(o.subtotal)}
-                </p>
-              </div>
-              <form action={updateStatus} className="flex gap-2">
+          <div key={o.id} className="glass-panel">
+            <div className="panel-head">
+              <h3>
+                #{o.id} · {o.table.tableNumber} · {o.orderSource}
+              </h3>
+              <span className="badge">{o.status}</span>
+            </div>
+            <div className="panel-body">
+              <p style={{ margin: "0 0 0.5rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                {money(o.subtotal)} · {o.createdAt.toLocaleString()}
+              </p>
+              <ul style={{ margin: "0 0 0.75rem", paddingLeft: "1.1rem", fontSize: "0.85rem" }}>
+                {o.items.map((i) => (
+                  <li key={i.id}>
+                    {i.qty}× {i.product.name} — {money(i.lineTotal)}
+                  </li>
+                ))}
+              </ul>
+              <form action={updateStatus} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                 <input type="hidden" name="id" value={o.id} />
-                <select name="status" defaultValue={o.status} className="rounded border border-[#3d352c] bg-[#12100e] px-2 py-1 text-sm">
+                <select name="status" defaultValue={o.status} className="cas-select" style={{ maxWidth: 180 }}>
                   {["pending", "committed", "preparing", "served", "paid", "cancelled"].map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
-                <button className="rounded bg-[#e8954a] px-3 py-1 text-sm text-[#12100e]">Update</button>
+                <button className="cas-btn cas-btn-primary cas-btn-sm">Update</button>
               </form>
             </div>
-            <ul className="mt-2 text-sm text-[#a89f94]">
-              {o.items.map((i) => (
-                <li key={i.id}>
-                  {i.qty}× {i.product.name} — {money(i.lineTotal)}
-                </li>
-              ))}
-            </ul>
           </div>
         ))}
-        {orders.length === 0 && <p className="text-[#a89f94]">No orders yet. Use customer QR menu or waiter flow.</p>}
+        {orders.length === 0 && (
+          <div className="cas-alert cas-alert-info">No orders yet. Use customer QR menu or waiter tablet.</div>
+        )}
       </div>
     </AppShell>
   );

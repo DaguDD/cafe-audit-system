@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  platform_admin
   admin
   manager
   auditor
@@ -19,6 +20,19 @@ enum Role {
 enum UserStatus {
   active
   inactive
+}
+
+enum CafeStatus {
+  active
+  suspended
+  trial
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  closed
 }
 
 enum TableStatus {
@@ -80,8 +94,69 @@ enum PoStatus {
   cancelled
 }
 
+model Cafe {
+  id           Int        @id @default(autoincrement()) @map("cafe_id")
+  name         String     @db.VarChar(120)
+  slug         String     @unique @db.VarChar(80)
+  contactEmail String?    @map("contact_email") @db.VarChar(120)
+  contactPhone String?    @map("contact_phone") @db.VarChar(40)
+  status       CafeStatus @default(trial)
+  notes        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  settings     CafeSettings?
+  users        User[]
+  suppliers    Supplier[]
+  categories   Category[]
+  inventory    Inventory[]
+  products     Product[]
+  shifts       Shift[]
+  tables       RestaurantTable[]
+  orders       Order[]
+  sales        Sale[]
+  auditLogs    AuditLog[]
+  wasteLogs    WasteLog[]
+  purchaseOrders PurchaseOrder[]
+  payments     PaymentSubmission[]
+  loginLogs    LoginLog[]
+  waiterRequests WaiterRequest[]
+
+  @@map("cafes")
+}
+
+model CafeSettings {
+  id               Int    @id @default(autoincrement())
+  cafeId           Int    @unique @map("cafe_id")
+  telebirrNumber   String @default("") @map("telebirr_number") @db.VarChar(40)
+  telebirrName     String @default("") @map("telebirr_name") @db.VarChar(100)
+  bankName         String @default("") @map("bank_name") @db.VarChar(100)
+  bankAccount      String @default("") @map("bank_account") @db.VarChar(60)
+  bankAccountName  String @default("") @map("bank_account_name") @db.VarChar(100)
+  instructions     String @default("")
+  varianceThresholdPct Decimal @default(10) @map("variance_threshold_pct") @db.Decimal(5, 2)
+  timezone         String @default("Africa/Addis_Ababa") @db.VarChar(60)
+  cafe             Cafe   @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@map("cafe_settings")
+}
+
+model Lead {
+  id        Int        @id @default(autoincrement())
+  name      String     @db.VarChar(120)
+  email     String     @db.VarChar(120)
+  phone     String?    @db.VarChar(40)
+  cafeName  String?    @map("cafe_name") @db.VarChar(120)
+  message   String
+  status    LeadStatus @default(new)
+  createdAt DateTime   @default(now()) @map("created_at")
+  notes     String?
+
+  @@map("leads")
+}
+
 model User {
   id           Int        @id @default(autoincrement()) @map("user_id")
+  cafeId       Int?       @map("cafe_id")
   username     String     @unique @db.VarChar(50)
   passwordHash String     @map("password_hash") @db.VarChar(255)
   fullName     String     @map("full_name") @db.VarChar(100)
@@ -89,6 +164,7 @@ model User {
   status       UserStatus @default(active)
   createdAt    DateTime   @default(now()) @map("created_at")
 
+  cafe               Cafe?              @relation(fields: [cafeId], references: [id])
   loginLogs          LoginLog[]
   shifts             Shift[]            @relation("ShiftStaff")
   openedShifts       Shift[]            @relation("ShiftOpener")
@@ -100,43 +176,53 @@ model User {
   reviewedPayments   PaymentSubmission[] @relation("PaymentReviewer")
   assignedRequests   WaiterRequest[]    @relation("WaiterAssignee")
 
+  @@index([cafeId])
   @@map("users")
 }
 
 model LoginLog {
   id        Int      @id @default(autoincrement()) @map("log_id")
+  cafeId    Int?     @map("cafe_id")
   userId    Int      @map("user_id")
   action    String   @db.VarChar(20)
   ipAddress String?  @map("ip_address") @db.VarChar(45)
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id])
+  cafe      Cafe?    @relation(fields: [cafeId], references: [id])
 
   @@map("login_logs")
 }
 
 model Supplier {
   id          Int        @id @default(autoincrement()) @map("sup_id")
+  cafeId      Int        @map("cafe_id")
   name        String     @db.VarChar(100)
   contactInfo String?    @map("contact_info") @db.VarChar(100)
   email       String?    @db.VarChar(100)
   status      UserStatus @default(active)
   createdAt   DateTime   @default(now()) @map("created_at")
+  cafe        Cafe       @relation(fields: [cafeId], references: [id])
   inventory   Inventory[]
   purchaseOrders PurchaseOrder[]
 
+  @@index([cafeId])
   @@map("suppliers")
 }
 
 model Category {
   id       Int       @id @default(autoincrement()) @map("cat_id")
-  name     String    @unique @db.VarChar(80)
+  cafeId   Int       @map("cafe_id")
+  name     String    @db.VarChar(80)
   products Product[]
+  cafe     Cafe      @relation(fields: [cafeId], references: [id])
 
+  @@unique([cafeId, name])
   @@map("categories")
 }
 
 model Inventory {
   id           Int       @id @default(autoincrement()) @map("item_id")
+  cafeId       Int       @map("cafe_id")
   name         String    @db.VarChar(100)
   unit         String    @default("unit") @db.VarChar(20)
   currentQty   Decimal   @default(0) @map("current_qty") @db.Decimal(12, 2)
@@ -146,6 +232,7 @@ model Inventory {
   status       UserStatus @default(active)
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+  cafe         Cafe      @relation(fields: [cafeId], references: [id])
   supplier     Supplier? @relation(fields: [supplierId], references: [id])
   recipes      Recipe[]
   auditLogs    AuditLog[]
@@ -153,22 +240,26 @@ model Inventory {
   purchaseOrders PurchaseOrder[]
   openingQuantities OpeningQuantity[]
 
+  @@index([cafeId])
   @@map("inventory")
 }
 
 model Product {
   id          Int       @id @default(autoincrement()) @map("product_id")
+  cafeId      Int       @map("cafe_id")
   name        String    @db.VarChar(100)
   description String?
   price       Decimal   @db.Decimal(10, 2)
   categoryId  Int?      @map("cat_id")
   status      UserStatus @default(active)
   createdAt   DateTime  @default(now()) @map("created_at")
+  cafe        Cafe      @relation(fields: [cafeId], references: [id])
   category    Category? @relation(fields: [categoryId], references: [id])
   recipes     Recipe[]
   orderItems  OrderItem[]
   sales       Sale[]
 
+  @@index([cafeId])
   @@map("products")
 }
 
@@ -186,6 +277,7 @@ model Recipe {
 
 model Shift {
   id          Int         @id @default(autoincrement()) @map("shift_id")
+  cafeId      Int         @map("cafe_id")
   userId      Int         @map("user_id")
   openedBy    Int         @map("opened_by")
   openedAt    DateTime    @default(now()) @map("opened_at")
@@ -193,6 +285,7 @@ model Shift {
   status      ShiftStatus @default(open)
   autoManaged Boolean     @default(false) @map("auto_managed")
   notes       String?
+  cafe        Cafe        @relation(fields: [cafeId], references: [id])
   user        User        @relation("ShiftStaff", fields: [userId], references: [id])
   opener      User        @relation("ShiftOpener", fields: [openedBy], references: [id])
   sales       Sale[]
@@ -201,6 +294,7 @@ model Shift {
   orders      Order[]
   openingQuantities OpeningQuantity[]
 
+  @@index([cafeId])
   @@map("shifts")
 }
 
@@ -219,36 +313,44 @@ model OpeningQuantity {
 
 model RestaurantTable {
   id           Int         @id @default(autoincrement()) @map("table_id")
-  tableNumber  String      @unique @map("table_number") @db.VarChar(10)
+  cafeId       Int         @map("cafe_id")
+  tableNumber  String      @map("table_number") @db.VarChar(10)
   qrToken      String      @unique @map("qr_token") @db.VarChar(64)
   status       TableStatus @default(available)
   capacity     Int         @default(4)
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
+  cafe         Cafe        @relation(fields: [cafeId], references: [id])
   orders       Order[]
   waiterRequests WaiterRequest[]
   payments     PaymentSubmission[]
   sales        Sale[]
 
+  @@unique([cafeId, tableNumber])
+  @@index([cafeId])
   @@map("restaurant_tables")
 }
 
 model WaiterRequest {
   id             Int       @id @default(autoincrement()) @map("request_id")
+  cafeId         Int       @map("cafe_id")
   tableId        Int       @map("table_id")
   status         String    @default("pending") @db.VarChar(20)
   assignedUserId Int?      @map("assigned_user_id")
   requestedAt    DateTime  @default(now()) @map("requested_at")
   acceptedAt     DateTime? @map("accepted_at")
   completedAt    DateTime? @map("completed_at")
+  cafe           Cafe      @relation(fields: [cafeId], references: [id])
   table          RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
   assignee       User?     @relation("WaiterAssignee", fields: [assignedUserId], references: [id])
 
+  @@index([cafeId])
   @@map("waiter_requests")
 }
 
 model Order {
   id           Int         @id @default(autoincrement()) @map("order_id")
+  cafeId       Int         @map("cafe_id")
   tableId      Int         @map("table_id")
   orderSource  OrderSource @default(qr) @map("order_source")
   serverUserId Int?        @map("server_user_id")
@@ -259,12 +361,14 @@ model Order {
   updatedAt    DateTime    @updatedAt @map("updated_at")
   paidAt       DateTime?   @map("paid_at")
   shiftId      Int?        @map("shift_id")
+  cafe         Cafe        @relation(fields: [cafeId], references: [id])
   table        RestaurantTable @relation(fields: [tableId], references: [id])
   server       User?       @relation("OrderServer", fields: [serverUserId], references: [id])
   shift        Shift?      @relation(fields: [shiftId], references: [id])
   items        OrderItem[]
   sales        Sale[]
 
+  @@index([cafeId])
   @@map("orders")
 }
 
@@ -285,6 +389,7 @@ model OrderItem {
 
 model Sale {
   id         Int       @id @default(autoincrement()) @map("sale_id")
+  cafeId     Int       @map("cafe_id")
   productId  Int       @map("product_id")
   qtySold    Int       @map("qty_sold")
   unitPrice  Decimal   @map("unit_price") @db.Decimal(10, 2)
@@ -294,17 +399,20 @@ model Sale {
   orderId    Int?      @map("order_id")
   tableId    Int?      @map("table_id")
   soldAt     DateTime  @default(now()) @map("sold_at")
+  cafe       Cafe      @relation(fields: [cafeId], references: [id])
   product    Product   @relation(fields: [productId], references: [id])
   shift      Shift     @relation(fields: [shiftId], references: [id])
   user       User      @relation(fields: [userId], references: [id])
   order      Order?    @relation(fields: [orderId], references: [id])
   table      RestaurantTable? @relation(fields: [tableId], references: [id])
 
+  @@index([cafeId])
   @@map("sales")
 }
 
 model AuditLog {
   id           Int       @id @default(autoincrement()) @map("audit_id")
+  cafeId       Int       @map("cafe_id")
   itemId       Int       @map("item_id")
   systemQty    Decimal   @map("system_qty") @db.Decimal(12, 2)
   physicalQty  Decimal   @map("physical_qty") @db.Decimal(12, 2)
@@ -314,30 +422,36 @@ model AuditLog {
   userId       Int       @map("user_id")
   comments     String?
   auditedAt    DateTime  @default(now()) @map("audited_at")
+  cafe         Cafe      @relation(fields: [cafeId], references: [id])
   item         Inventory @relation(fields: [itemId], references: [id])
   shift        Shift?    @relation(fields: [shiftId], references: [id])
   user         User      @relation(fields: [userId], references: [id])
 
+  @@index([cafeId])
   @@map("audit_logs")
 }
 
 model WasteLog {
   id        Int         @id @default(autoincrement()) @map("waste_id")
+  cafeId    Int         @map("cafe_id")
   itemId    Int         @map("item_id")
   wasteQty  Decimal     @map("waste_qty") @db.Decimal(12, 2)
   reason    WasteReason
   shiftId   Int?        @map("shift_id")
   userId    Int         @map("user_id")
   loggedAt  DateTime    @default(now()) @map("logged_at")
+  cafe      Cafe        @relation(fields: [cafeId], references: [id])
   item      Inventory   @relation(fields: [itemId], references: [id])
   shift     Shift?      @relation(fields: [shiftId], references: [id])
   user      User        @relation(fields: [userId], references: [id])
 
+  @@index([cafeId])
   @@map("waste_logs")
 }
 
 model PurchaseOrder {
   id               Int       @id @default(autoincrement()) @map("po_id")
+  cafeId           Int       @map("cafe_id")
   itemId           Int       @map("item_id")
   supplierId       Int       @map("sup_id")
   orderedQty       Decimal   @map("ordered_qty") @db.Decimal(12, 2)
@@ -348,15 +462,18 @@ model PurchaseOrder {
   createdBy        Int       @map("created_by")
   createdAt        DateTime  @default(now()) @map("created_at")
   receivedAt       DateTime? @map("received_at")
+  cafe             Cafe      @relation(fields: [cafeId], references: [id])
   item             Inventory @relation(fields: [itemId], references: [id])
   supplier         Supplier  @relation(fields: [supplierId], references: [id])
   creator          User      @relation(fields: [createdBy], references: [id])
 
+  @@index([cafeId])
   @@map("purchase_orders")
 }
 
 model PaymentSubmission {
   id              Int           @id @default(autoincrement()) @map("submission_id")
+  cafeId          Int           @map("cafe_id")
   tableId         Int           @map("table_id")
   amountExpected  Decimal       @map("amount_expected") @db.Decimal(12, 2)
   amountClaimed   Decimal       @map("amount_claimed") @db.Decimal(12, 2)
@@ -373,8 +490,10 @@ model PaymentSubmission {
   reviewNotes     String?       @map("review_notes")
   createdAt       DateTime      @default(now()) @map("created_at")
   reviewedAt      DateTime?     @map("reviewed_at")
+  cafe            Cafe          @relation(fields: [cafeId], references: [id])
   table           RestaurantTable @relation(fields: [tableId], references: [id])
   reviewer        User?         @relation("PaymentReviewer", fields: [reviewedById], references: [id])
 
+  @@index([cafeId])
   @@map("payment_submissions")
 }

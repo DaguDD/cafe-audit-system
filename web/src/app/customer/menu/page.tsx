@@ -15,18 +15,25 @@ export default async function CustomerMenuPage({
   const sp = await searchParams;
   const token = sp.table || "";
   const table = token
-    ? await prisma.restaurantTable.findUnique({ where: { qrToken: token } })
+    ? await prisma.restaurantTable.findUnique({
+        where: { qrToken: token },
+        include: { cafe: { include: { settings: true } } },
+      })
     : null;
   if (!table) notFound();
 
+  const cafeId = table.cafeId;
+  const settings = table.cafe.settings;
+  const cafeName = table.cafe.name;
+
   const products = await prisma.product.findMany({
-    where: { status: "active" },
+    where: { cafeId, status: "active" },
     include: { category: true },
     orderBy: { name: "asc" },
   });
 
   const openOrders = await prisma.order.findMany({
-    where: { tableId: table.id, status: { notIn: ["paid", "cancelled"] } },
+    where: { cafeId, tableId: table.id, status: { notIn: ["paid", "cancelled"] } },
     include: { items: { include: { product: true } } },
   });
   const bill = openOrders.reduce((sum, o) => sum + Number(o.subtotal), 0);
@@ -38,12 +45,15 @@ export default async function CustomerMenuPage({
     if (!t) return;
     const productId = Number(formData.get("productId"));
     const qty = Math.max(1, Number(formData.get("qty") || 1));
-    const product = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    const product = await prisma.product.findFirstOrThrow({
+      where: { id: productId, cafeId: t.cafeId },
+    });
     const line = Number(product.price) * qty;
 
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
+          cafeId: t.cafeId,
           tableId: t.id,
           orderSource: "qr",
           status: "committed",
@@ -68,18 +78,39 @@ export default async function CustomerMenuPage({
     revalidatePath(`/customer/menu`);
   }
 
+  async function callWaiter(formData: FormData) {
+    "use server";
+    const tableToken = String(formData.get("tableToken") || "");
+    const t = await prisma.restaurantTable.findUnique({ where: { qrToken: tableToken } });
+    if (!t) return;
+    const existing = await prisma.waiterRequest.findFirst({
+      where: { cafeId: t.cafeId, tableId: t.id, status: "pending" },
+    });
+    if (!existing) {
+      await prisma.waiterRequest.create({
+        data: { cafeId: t.cafeId, tableId: t.id, status: "pending" },
+      });
+      await prisma.restaurantTable.update({
+        where: { id: t.id },
+        data: { status: "waiter_requested" },
+      });
+    }
+    revalidatePath(`/customer/menu`);
+  }
+
   async function submitPayment(formData: FormData) {
     "use server";
     const tableToken = String(formData.get("tableToken") || "");
     const t = await prisma.restaurantTable.findUnique({ where: { qrToken: tableToken } });
     if (!t) return;
     const open = await prisma.order.findMany({
-      where: { tableId: t.id, status: { notIn: ["paid", "cancelled"] } },
+      where: { cafeId: t.cafeId, tableId: t.id, status: { notIn: ["paid", "cancelled"] } },
     });
     const due = open.reduce((sum, o) => sum + Number(o.subtotal), 0);
     const amount = Number(formData.get("amount") || due);
     const method = String(formData.get("method") || "telebirr") as "telebirr" | "bank";
-    const reference = String(formData.get("reference") || "").trim() || `REF-${randomBytes(4).toString("hex")}`;
+    const reference =
+      String(formData.get("reference") || "").trim() || `REF-${randomBytes(4).toString("hex")}`;
     const file = formData.get("screenshot") as File | null;
 
     let screenshotUrl = "local-demo-no-blob";
@@ -101,6 +132,7 @@ export default async function CustomerMenuPage({
 
     await prisma.paymentSubmission.create({
       data: {
+        cafeId: t.cafeId,
         tableId: t.id,
         amountExpected: due || amount,
         amountClaimed: amount,
@@ -119,22 +151,31 @@ export default async function CustomerMenuPage({
     revalidatePath(`/customer/menu`);
   }
 
-  const cafe = process.env.NEXT_PUBLIC_CAFE_NAME || "Unity Cafe";
-
   return (
     <div className="min-h-screen bg-[#f7f3ee] text-[#211d19]">
       <header className="border-b border-[#e5ddd3] bg-white px-4 py-5">
         <p className="text-xs uppercase tracking-widest text-[#e8954a]">Cafe Audit System</p>
-        <h1 className="text-2xl font-semibold">{cafe}</h1>
+        <h1 className="text-2xl font-semibold">{cafeName}</h1>
         <p className="text-sm text-[#6b635a]">Table {table.tableNumber}</p>
       </header>
 
       <main className="mx-auto max-w-lg space-y-6 p-4">
+        <form action={callWaiter}>
+          <input type="hidden" name="tableToken" value={token} />
+          <button className="w-full rounded-lg border border-[#e5ddd3] bg-white px-3 py-2.5 text-sm font-medium">
+            Call waiter
+          </button>
+        </form>
+
         <section>
           <h2 className="mb-3 text-lg font-medium">Menu</h2>
           <div className="space-y-3">
             {products.map((p) => (
-              <form key={p.id} action={placeOrder} className="flex items-center justify-between gap-3 rounded-xl border border-[#e5ddd3] bg-white p-3">
+              <form
+                key={p.id}
+                action={placeOrder}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[#e5ddd3] bg-white p-3"
+              >
                 <div>
                   <p className="font-medium">{p.name}</p>
                   <p className="text-sm text-[#6b635a]">{money(p.price)}</p>
@@ -142,8 +183,16 @@ export default async function CustomerMenuPage({
                 <div className="flex items-center gap-2">
                   <input type="hidden" name="tableToken" value={token} />
                   <input type="hidden" name="productId" value={p.id} />
-                  <input name="qty" type="number" min={1} defaultValue={1} className="w-14 rounded border px-2 py-1 text-sm" />
-                  <button className="rounded-lg bg-[#e8954a] px-3 py-1.5 text-sm font-medium text-white">Add</button>
+                  <input
+                    name="qty"
+                    type="number"
+                    min={1}
+                    defaultValue={1}
+                    className="w-14 rounded border px-2 py-1 text-sm"
+                  />
+                  <button className="rounded-lg bg-[#e8954a] px-3 py-1.5 text-sm font-medium text-white">
+                    Add
+                  </button>
                 </div>
               </form>
             ))}
@@ -173,15 +222,40 @@ export default async function CustomerMenuPage({
 
         <section className="rounded-xl border border-[#e5ddd3] bg-white p-4">
           <h2 className="text-lg font-medium">Pay with Telebirr / bank</h2>
-          <p className="mt-1 text-sm text-[#6b635a]">Upload a payment screenshot for staff to verify.</p>
+          {settings && (
+            <div className="mt-2 space-y-1 rounded-lg bg-[#f7f3ee] p-3 text-sm text-[#6b635a]">
+              <p>
+                <strong>Telebirr:</strong> {settings.telebirrNumber} ({settings.telebirrName})
+              </p>
+              <p>
+                <strong>Bank:</strong> {settings.bankName} · {settings.bankAccount} (
+                {settings.bankAccountName})
+              </p>
+              {settings.instructions && <p>{settings.instructions}</p>}
+            </div>
+          )}
+          <p className="mt-2 text-sm text-[#6b635a]">
+            Upload a payment screenshot for staff to verify.
+          </p>
           <form action={submitPayment} className="mt-3 space-y-3" encType="multipart/form-data">
             <input type="hidden" name="tableToken" value={token} />
             <select name="method" className="w-full rounded border px-3 py-2 text-sm">
               <option value="telebirr">Telebirr</option>
               <option value="bank">Bank transfer</option>
             </select>
-            <input name="reference" placeholder="Reference number" className="w-full rounded border px-3 py-2 text-sm" />
-            <input name="amount" type="number" step="0.01" defaultValue={bill || undefined} placeholder="Amount" className="w-full rounded border px-3 py-2 text-sm" />
+            <input
+              name="reference"
+              placeholder="Reference number"
+              className="w-full rounded border px-3 py-2 text-sm"
+            />
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              defaultValue={bill || undefined}
+              placeholder="Amount"
+              className="w-full rounded border px-3 py-2 text-sm"
+            />
             <input name="screenshot" type="file" accept="image/*" className="w-full text-sm" />
             <button className="w-full rounded-lg bg-[#211d19] px-3 py-2.5 text-sm font-medium text-white">
               Submit payment proof

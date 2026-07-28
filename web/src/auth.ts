@@ -13,11 +13,13 @@ declare module "next-auth" {
       email?: string | null;
       username: string;
       role: Role;
+      cafeId: number | null;
     };
   }
   interface User {
     username: string;
     role: Role;
+    cafeId: number | null;
   }
 }
 
@@ -41,8 +43,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
 
+        if (user.role !== "platform_admin" && user.cafeId) {
+          const cafe = await prisma.cafe.findUnique({ where: { id: user.cafeId } });
+          if (!cafe || cafe.status === "suspended") return null;
+        }
+
         await prisma.loginLog.create({
-          data: { userId: user.id, action: "login" },
+          data: {
+            userId: user.id,
+            cafeId: user.cafeId,
+            action: "login",
+          },
         });
 
         return {
@@ -50,6 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.fullName,
           username: user.username,
           role: user.role,
+          cafeId: user.cafeId,
         };
       },
     }),
@@ -61,6 +73,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id!;
         token.username = user.username;
         token.role = user.role;
+        token.cafeId = user.cafeId;
       }
       return token;
     },
@@ -68,6 +81,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.id = token.id as string;
       session.user.username = token.username as string;
       session.user.role = token.role as Role;
+      session.user.cafeId = (token.cafeId as number | null) ?? null;
       return session;
     },
   },

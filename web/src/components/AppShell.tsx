@@ -2,68 +2,169 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import type { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { ROLE_LABEL } from "@/lib/auth-helpers";
+import SidebarNav, { type NavSection } from "./SidebarNav";
 
-const NAV: { href: string; label: string; roles: Role[] }[] = [
-  { href: "/dashboard", label: "Dashboard", roles: ["admin", "manager", "auditor", "server", "kitchen", "staff"] },
-  { href: "/inventory", label: "Inventory", roles: ["admin", "manager", "auditor", "kitchen"] },
-  { href: "/products", label: "Products", roles: ["admin", "manager", "kitchen"] },
-  { href: "/audit", label: "Audit", roles: ["admin", "manager", "auditor"] },
-  { href: "/tables", label: "Tables & QR", roles: ["admin", "manager"] },
-  { href: "/orders", label: "Orders", roles: ["admin", "manager", "server"] },
-  { href: "/kitchen", label: "Kitchen", roles: ["admin", "manager", "kitchen"] },
-  { href: "/payments", label: "Payments", roles: ["admin", "manager", "server", "staff"] },
-  { href: "/sales", label: "Sales", roles: ["admin", "manager", "server", "staff"] },
-];
+function can(role: Role | undefined, roles: Role[]) {
+  return !!role && roles.includes(role);
+}
 
 export default async function AppShell({
   children,
   title,
+  eyebrow,
+  lead,
 }: {
   children: ReactNode;
   title: string;
+  eyebrow?: string;
+  lead?: string;
 }) {
   const session = await auth();
   const role = session?.user?.role;
+  const cafeId = session?.user?.cafeId ?? null;
+  const name = session?.user?.name || "User";
+  const cafeScope = cafeId ? { cafeId } : { cafeId: -1 };
+
+  const [pendingPayments, pendingWaiter, cafe] = await Promise.all([
+    can(role, ["admin", "manager", "server", "staff"])
+      ? prisma.paymentSubmission.count({ where: { ...cafeScope, status: "pending" } })
+      : Promise.resolve(0),
+    can(role, ["admin", "manager", "server"])
+      ? prisma.waiterRequest.count({ where: { ...cafeScope, status: "pending" } })
+      : Promise.resolve(0),
+    cafeId ? prisma.cafe.findUnique({ where: { id: cafeId } }) : Promise.resolve(null),
+  ]);
+
+  const sections: NavSection[] = [];
+
+  sections.push({
+    title: "Overview",
+    items: [{ href: "/dashboard", label: "Dashboard" }],
+  });
+
+  const ops: NavSection["items"] = [];
+  if (can(role, ["admin", "manager", "server"])) {
+    ops.push({ href: "/server", label: "Waiter Tablet", badge: pendingWaiter || undefined });
+    ops.push({ href: "/orders", label: "Active Tables" });
+  }
+  if (can(role, ["admin", "manager", "server", "staff"])) {
+    ops.push({ href: "/payments", label: "Payments", badge: pendingPayments || undefined });
+  }
+  if (can(role, ["admin", "manager", "kitchen"])) {
+    ops.push({ href: "/kitchen", label: "Kitchen" });
+  }
+  if (can(role, ["admin", "manager", "auditor", "kitchen"])) {
+    ops.push({ href: "/inventory", label: "Inventory" });
+  }
+  if (can(role, ["admin", "manager", "kitchen"])) {
+    ops.push({ href: "/products", label: "Products" });
+  }
+  if (can(role, ["admin", "manager", "auditor"])) {
+    ops.push({ href: "/audit", label: "Reconciliation" });
+  }
+  if (can(role, ["admin", "manager", "server", "staff"])) {
+    ops.push({ href: "/sales", label: "Sales" });
+  }
+  if (can(role, ["admin", "manager", "server", "staff", "kitchen"])) {
+    ops.push({ href: "/waste", label: "Waste" });
+  }
+  if (ops.length) sections.push({ title: "Operations", items: ops });
+
+  if (can(role, ["admin", "manager"])) {
+    sections.push({
+      title: "Management",
+      items: [
+        { href: "/tables", label: "Tables & QR" },
+        { href: "/shifts", label: "Shifts" },
+        { href: "/suppliers", label: "Suppliers" },
+      ],
+    });
+  }
+
+  if (can(role, ["admin", "manager", "auditor"])) {
+    sections.push({
+      title: "Intelligence",
+      items: [{ href: "/reports", label: "Analytics" }],
+    });
+  }
 
   return (
-    <div className="min-h-screen bg-[#12100e] text-[#f5f0ea]">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-56 shrink-0 border-r border-[#3d352c] bg-[#1a1714] p-4 md:block">
-          <div className="mb-6">
-            <p className="text-xs uppercase tracking-widest text-[#e8954a]">Cafe Audit System</p>
-            <p className="mt-1 text-sm text-[#a89f94]">{session?.user?.name}</p>
-            <p className="text-xs text-[#a89f94]">{role}</p>
+    <div className="app-shell">
+      <aside className="app-sidebar desktop-only">
+        <div className="sidebar-brand">
+          <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+            <span className="mark">CAS</span>
+            <span className="brand-text">
+              <span className="name">{cafe?.name || "Cafe Audit System"}</span>
+              <br />
+              <span className="tag">Operations desk</span>
+            </span>
+          </Link>
+        </div>
+        <SidebarNav sections={sections} />
+        <div className="sidebar-footer">
+          <div className="user-row">
+            <div className="user-avatar">{name.charAt(0).toUpperCase()}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <strong style={{ display: "block", fontSize: "0.8rem" }}>{name}</strong>
+              <span className="role-pill">{role ? ROLE_LABEL[role] : ""}</span>
+            </div>
           </div>
-          <nav className="flex flex-col gap-1">
-            {NAV.filter((n) => role && n.roles.includes(role)).map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="rounded-lg px-3 py-2 text-sm text-[#f5f0ea]/90 hover:bg-[#2a2520]"
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <form
-            className="mt-8"
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button className="w-full rounded-lg border border-[#3d352c] px-3 py-2 text-sm text-[#a89f94] hover:bg-[#2a2520]">
-              Sign out
-            </button>
-          </form>
-        </aside>
-        <main className="flex-1 p-4 md:p-8">
-          <header className="mb-6 flex items-center justify-between border-b border-[#3d352c] pb-4">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <Link href="/login" className="text-sm text-[#e8954a] md:hidden">
-              Account
+          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+            <Link href="/settings" className="cas-btn cas-btn-ghost cas-btn-sm" style={{ flex: 1 }}>
+              Settings
             </Link>
-          </header>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login" });
+              }}
+              style={{ flex: 1 }}
+            >
+              <button type="submit" className="cas-btn cas-btn-ghost cas-btn-sm cas-btn-block">
+                Sign out
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <div className="app-main-wrap">
+        <header className="app-topbar">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span className="mark" style={{ width: 28, height: 28, fontSize: "0.65rem" }}>
+              CAS
+            </span>
+            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>System Online</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span className="system-status" style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              <span className="status-dot" />
+              Online
+            </span>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login" });
+              }}
+            >
+              <button type="submit" className="cas-btn cas-btn-ghost cas-btn-sm">
+                Sign out
+              </button>
+            </form>
+          </div>
+        </header>
+
+        <SidebarNav sections={sections} mobile />
+
+        <main className="app-content">
+          <div className="page-hero">
+            {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
+            <h1>{title}</h1>
+            {lead ? <p className="lead">{lead}</p> : null}
+          </div>
           {children}
         </main>
       </div>
