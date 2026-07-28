@@ -20,7 +20,8 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireCafeUser(): Promise<SessionUser & { cafeId: number }> {
   const user = await requireUser();
   if (user.role === "platform_admin") redirect("/platform");
-  if (!user.cafeId) redirect("/login?error=cafe");
+  // Login page must render this error without bouncing back to cafe routes
+  if (user.cafeId == null) redirect("/login?error=cafe");
   return user as SessionUser & { cafeId: number };
 }
 

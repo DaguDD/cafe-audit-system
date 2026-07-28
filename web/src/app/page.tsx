@@ -28,7 +28,9 @@ export default async function LandingPage({
 }) {
   const session = await auth();
   if (session?.user?.role === "platform_admin") redirect("/platform");
-  if (session?.user) redirect("/dashboard");
+  // Cafe-less sessions must not bounce to /dashboard (redirect loop via ?error=cafe)
+  if (session?.user?.cafeId) redirect("/dashboard");
+  if (session?.user) redirect("/login?error=cafe");
 
   const sp = await searchParams;
 
