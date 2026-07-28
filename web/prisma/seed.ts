@@ -21,7 +21,14 @@ async function ensureCafe() {
 
   await prisma.cafeSettings.upsert({
     where: { cafeId: cafe.id },
-    update: {},
+    update: {
+      displayName: "Demo Cafe",
+      tagline: "Tap a category, add to cart, and we'll bring it right over.",
+      accentColor: "#d4af74",
+      menuTheme: "dark_gold",
+      vatRate: 15,
+      serviceChargeRate: 10,
+    },
     create: {
       cafeId: cafe.id,
       telebirrNumber: "0912345678",
@@ -31,6 +38,12 @@ async function ensureCafe() {
       bankAccountName: "Demo Cafe PLC",
       instructions:
         "Pay the exact total shown on your receipt. Upload your Telebirr or bank screenshot with the reference number.",
+      displayName: "Demo Cafe",
+      tagline: "Tap a category, add to cart, and we'll bring it right over.",
+      accentColor: "#d4af74",
+      menuTheme: "dark_gold",
+      vatRate: 15,
+      serviceChargeRate: 10,
     },
   });
 

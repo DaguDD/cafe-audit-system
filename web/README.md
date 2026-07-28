@@ -1,6 +1,6 @@
-# Cafe Audit System — Vercel (Next.js) app
+# Casora — Vercel (Next.js) app
 
-This folder is the **online** version for [Vercel](https://vercel.com).
+This folder is the **online** version of Casora for [Vercel](https://vercel.com).
 
 ## Local setup
 

@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 
+const CONTACT_PHONE = "+251954839016";
+const CONTACT_EMAIL = "dagimdereje123@gmail.com";
+const PHONE_TEL = "+251954839016";
+
 async function submitLead(formData: FormData) {
   "use server";
   const name = String(formData.get("name") || "").trim();
@@ -28,7 +32,6 @@ export default async function LandingPage({
 }) {
   const session = await auth();
   if (session?.user?.role === "platform_admin") redirect("/platform");
-  // Cafe-less sessions must not bounce to /dashboard (redirect loop via ?error=cafe)
   if (session?.user?.cafeId) redirect("/dashboard");
   if (session?.user) redirect("/login?error=cafe");
 
@@ -60,7 +63,7 @@ export default async function LandingPage({
         .landing-brand .mark {
           width: 40px; height: 40px; border-radius: 10px;
           background: rgba(232,149,74,0.16); color: var(--land-accent);
-          display: grid; place-items: center; font-size: 0.75rem;
+          display: grid; place-items: center; font-size: 0.95rem; font-weight: 800;
         }
         .landing-nav-actions { display: flex; gap: 0.5rem; align-items: center; }
         .landing-hero {
@@ -77,9 +80,9 @@ export default async function LandingPage({
           }
         }
         .landing-hero h1 {
-          font-size: clamp(2.4rem, 5vw, 3.6rem);
-          line-height: 1.05; margin: 0.4rem 0 0.85rem;
-          letter-spacing: -0.03em; font-weight: 700;
+          font-size: clamp(2.6rem, 6vw, 4rem);
+          line-height: 1.02; margin: 0.35rem 0 0.85rem;
+          letter-spacing: -0.04em; font-weight: 700;
         }
         .landing-hero .eyebrow {
           color: var(--land-accent); text-transform: uppercase;
@@ -102,9 +105,7 @@ export default async function LandingPage({
           border: 1px solid #3d352c;
           background:
             linear-gradient(160deg, rgba(232,149,74,0.2), transparent 40%),
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Ccircle cx='60' cy='60' r='28' fill='none' stroke='%23e8954a' stroke-opacity='0.25' stroke-width='2'/%3E%3Ccircle cx='60' cy='60' r='12' fill='%23e8954a' fill-opacity='0.35'/%3E%3C/svg%3E"),
             #1a1612;
-          background-size: cover, 80px 80px, auto;
           min-height: 320px;
           position: relative;
           animation: land-fade 1.1s ease both;
@@ -150,9 +151,31 @@ export default async function LandingPage({
         .step .n { color: var(--land-accent); font-size: 0.75rem; letter-spacing: 0.08em; }
         .step h3 { margin: 0.2rem 0; font-size: 1.05rem; }
         .step p { margin: 0; color: var(--land-muted); font-size: 0.9rem; }
+        .contact-grid {
+          display: grid; gap: 1.25rem;
+        }
+        @media (min-width: 800px) {
+          .contact-grid { grid-template-columns: 1fr 1.1fr; align-items: start; }
+        }
+        .contact-direct {
+          background: var(--land-surface); border: 1px solid #3d352c;
+          border-radius: 14px; padding: 1.35rem;
+        }
+        .contact-direct a {
+          color: var(--land-accent); text-decoration: none; font-weight: 600;
+        }
+        .contact-direct a:hover { text-decoration: underline; }
+        .contact-row {
+          display: flex; flex-direction: column; gap: 0.2rem;
+          margin-bottom: 1rem;
+        }
+        .contact-row .label {
+          font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+          color: var(--land-muted);
+        }
         .contact-panel {
           background: var(--land-surface); border: 1px solid #3d352c;
-          border-radius: 14px; padding: 1.35rem; max-width: 560px;
+          border-radius: 14px; padding: 1.35rem;
         }
         .contact-panel input, .contact-panel textarea {
           width: 100%; background: #12100e; border: 1px solid #3d352c;
@@ -164,17 +187,22 @@ export default async function LandingPage({
           color: var(--land-muted); font-size: 0.8rem;
           max-width: 1100px; margin: 0 auto;
           display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+          align-items: center;
+        }
+        .landing-footer a { color: var(--land-muted); }
+        .landing-footer .platform-link {
+          opacity: 0.7; font-size: 0.75rem;
         }
       `}</style>
 
       <nav className="landing-nav">
         <div className="landing-brand">
-          <span className="mark">CAS</span>
-          Cafe Audit System
+          <span className="mark">C</span>
+          Casora
         </div>
         <div className="landing-nav-actions">
           <Link href="/login" className="landing-btn landing-btn-ghost">
-            Sign in
+            Try demo
           </Link>
           <a href="#contact" className="landing-btn landing-btn-primary">
             Get your cafe
@@ -184,8 +212,8 @@ export default async function LandingPage({
 
       <section className="landing-hero">
         <div>
-          <p className="eyebrow">Cafe operations platform</p>
-          <h1>Cafe Audit System</h1>
+          <p className="eyebrow">Cafe operations software</p>
+          <h1>Casora</h1>
           <p className="sub">
             Inventory that ties to recipes, QR table ordering, kitchen tickets, Telebirr payment
             verification, and stock reconciliation — one desk for floor, kitchen, and back office.
@@ -194,8 +222,8 @@ export default async function LandingPage({
             <Link href="/login" className="landing-btn landing-btn-primary">
               Try the demo
             </Link>
-            <a href="#how" className="landing-btn landing-btn-ghost">
-              How it works
+            <a href="#contact" className="landing-btn landing-btn-ghost">
+              Contact us
             </a>
           </div>
         </div>
@@ -208,7 +236,7 @@ export default async function LandingPage({
       </section>
 
       <section className="landing-section" id="features">
-        <h2>What it does</h2>
+        <h2>What Casora does</h2>
         <p className="lead">Built for Ethiopian cafes that need stock honesty and faster table service.</p>
         <div className="feature-grid">
           <div className="feature">
@@ -250,7 +278,7 @@ export default async function LandingPage({
           <div className="step">
             <div className="n">02</div>
             <h3>Tell us about your cafe</h3>
-            <p>Send a short note — tables, staff size, Telebirr details.</p>
+            <p>Call, email, or send a short note — tables, staff size, Telebirr details.</p>
           </div>
           <div className="step">
             <div className="n">03</div>
@@ -262,34 +290,55 @@ export default async function LandingPage({
 
       <section className="landing-section" id="contact">
         <h2>Contact us</h2>
-        <p className="lead">Ready for your own cafe system? Leave a note and we will follow up.</p>
+        <p className="lead">Ready for your own cafe system? Reach us directly or leave a note.</p>
         {sp.contact === "ok" && (
-          <div className="cas-alert cas-alert-success" style={{ maxWidth: 560 }}>
+          <div className="cas-alert cas-alert-success" style={{ maxWidth: 560, marginBottom: "1rem" }}>
             Thanks — we received your message and will be in touch.
           </div>
         )}
         {sp.contact === "err" && (
-          <div className="cas-alert cas-alert-warning" style={{ maxWidth: 560 }}>
+          <div className="cas-alert cas-alert-warning" style={{ maxWidth: 560, marginBottom: "1rem" }}>
             Please fill in name, email, and message.
           </div>
         )}
-        <div className="contact-panel">
-          <form action={submitLead}>
-            <input name="name" placeholder="Your name" required />
-            <input name="email" type="email" placeholder="Email" required />
-            <input name="phone" placeholder="Phone (optional)" />
-            <input name="cafeName" placeholder="Cafe name (optional)" />
-            <textarea name="message" rows={4} placeholder="How can we help?" required />
-            <button type="submit" className="landing-btn landing-btn-primary">
-              Send message
-            </button>
-          </form>
+        <div className="contact-grid">
+          <div className="contact-direct">
+            <div className="contact-row">
+              <span className="label">Phone</span>
+              <a href={`tel:${PHONE_TEL}`}>{CONTACT_PHONE}</a>
+            </div>
+            <div className="contact-row">
+              <span className="label">Email</span>
+              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+            </div>
+            <p style={{ color: "var(--land-muted)", fontSize: "0.88rem", margin: 0, lineHeight: 1.45 }}>
+              Prefer a quick chat? Call or email — we&apos;ll help you get Casora running for your
+              cafe.
+            </p>
+          </div>
+          <div className="contact-panel">
+            <form action={submitLead}>
+              <input name="name" placeholder="Your name" required />
+              <input name="email" type="email" placeholder="Email" required />
+              <input name="phone" placeholder="Phone (optional)" />
+              <input name="cafeName" placeholder="Cafe name (optional)" />
+              <textarea name="message" rows={4} placeholder="How can we help?" required />
+              <button type="submit" className="landing-btn landing-btn-primary">
+                Send message
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 
       <footer className="landing-footer">
-        <span>© {new Date().getFullYear()} Cafe Audit System</span>
-        <Link href="/login">Staff / demo login</Link>
+        <span>© {new Date().getFullYear()} Casora</span>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          <Link href="/login">Try demo / cafe sign-in</Link>
+          <Link href="/login" className="platform-link">
+            Platform sign-in
+          </Link>
+        </div>
       </footer>
     </div>
   );

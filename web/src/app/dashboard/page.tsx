@@ -99,7 +99,7 @@ export default async function DashboardPage() {
   return (
     <AppShell
       title="Dashboard"
-      eyebrow="Cafe Audit System"
+      eyebrow="Operations"
       lead={`Welcome, ${user.name} · ${role}`}
     >
       {myShift ? (

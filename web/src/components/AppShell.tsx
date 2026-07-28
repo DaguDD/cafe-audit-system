@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import type { Role } from "@prisma/client";
@@ -34,8 +34,16 @@ export default async function AppShell({
     can(role, ["admin", "manager", "server"])
       ? prisma.waiterRequest.count({ where: { ...cafeScope, status: "pending" } })
       : Promise.resolve(0),
-    cafeId ? prisma.cafe.findUnique({ where: { id: cafeId } }) : Promise.resolve(null),
+    cafeId
+      ? prisma.cafe.findUnique({
+          where: { id: cafeId },
+          include: { settings: { select: { displayName: true, logoUrl: true, accentColor: true } } },
+        })
+      : Promise.resolve(null),
   ]);
+
+  const cafeLabel = cafe?.settings?.displayName?.trim() || cafe?.name || "Cafe";
+  const accent = cafe?.settings?.accentColor?.trim() || undefined;
 
   const sections: NavSection[] = [];
 
@@ -91,15 +99,27 @@ export default async function AppShell({
   }
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      style={accent ? ({ ["--accent"]: accent } as CSSProperties) : undefined}
+    >
       <aside className="app-sidebar desktop-only">
         <div className="sidebar-brand">
           <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
-            <span className="mark">CAS</span>
+            {cafe?.settings?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={cafe.settings.logoUrl}
+                alt=""
+                style={{ width: 36, height: 36, borderRadius: 10, objectFit: "contain" }}
+              />
+            ) : (
+              <span className="mark">C</span>
+            )}
             <span className="brand-text">
-              <span className="name">{cafe?.name || "Cafe Audit System"}</span>
+              <span className="name">{cafeLabel}</span>
               <br />
-              <span className="tag">Operations desk</span>
+              <span className="tag">Powered by Casora</span>
             </span>
           </Link>
         </div>
@@ -134,10 +154,10 @@ export default async function AppShell({
       <div className="app-main-wrap">
         <header className="app-topbar">
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className="mark" style={{ width: 28, height: 28, fontSize: "0.65rem" }}>
-              CAS
+            <span className="mark" style={{ width: 28, height: 28, fontSize: "0.75rem" }}>
+              C
             </span>
-            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>System Online</span>
+            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{cafeLabel}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <span className="system-status" style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>

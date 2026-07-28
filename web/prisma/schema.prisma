@@ -94,6 +94,11 @@ enum PoStatus {
   cancelled
 }
 
+enum MenuTheme {
+  dark_gold
+  custom
+}
+
 model Cafe {
   id           Int        @id @default(autoincrement()) @map("cafe_id")
   name         String     @db.VarChar(120)
@@ -135,6 +140,16 @@ model CafeSettings {
   instructions     String @default("")
   varianceThresholdPct Decimal @default(10) @map("variance_threshold_pct") @db.Decimal(5, 2)
   timezone         String @default("Africa/Addis_Ababa") @db.VarChar(60)
+  /// Optional guest-facing name override (falls back to Cafe.name)
+  displayName      String? @map("display_name") @db.VarChar(120)
+  tagline          String? @db.VarChar(200)
+  logoUrl          String? @map("logo_url") @db.VarChar(500)
+  backgroundUrl    String? @map("background_url") @db.VarChar(500)
+  backgroundColor  String? @map("background_color") @db.VarChar(20)
+  accentColor      String? @map("accent_color") @db.VarChar(20)
+  menuTheme        MenuTheme @default(dark_gold) @map("menu_theme")
+  vatRate          Decimal @default(15) @map("vat_rate") @db.Decimal(5, 2)
+  serviceChargeRate Decimal @default(10) @map("service_charge_rate") @db.Decimal(5, 2)
   cafe             Cafe   @relation(fields: [cafeId], references: [id], onDelete: Cascade)
 
   @@map("cafe_settings")

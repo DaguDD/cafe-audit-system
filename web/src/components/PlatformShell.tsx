@@ -30,9 +30,9 @@ export default async function PlatformShell({
       <aside className="app-sidebar desktop-only">
         <div className="sidebar-brand">
           <Link href="/platform" style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
-            <span className="mark">CAS</span>
+            <span className="mark">C</span>
             <span className="brand-text">
-              <span className="name">Platform</span>
+              <span className="name">Casora Platform</span>
               <br />
               <span className="tag">All cafes</span>
             </span>
@@ -71,7 +71,7 @@ export default async function PlatformShell({
       <div className="app-main-wrap">
         <header className="app-topbar">
           <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-            Platform admin · cross-cafe
+            Casora Platform · cross-cafe
           </span>
           <nav className="mobile-nav" style={{ border: 0, padding: 0, background: "transparent" }}>
             {NAV.map((item) => (
@@ -83,7 +83,7 @@ export default async function PlatformShell({
         </header>
         <main className="app-content">
           <div className="page-hero">
-            <p className="page-eyebrow">Platform</p>
+            <p className="page-eyebrow">Casora Platform</p>
             <h1>{title}</h1>
             {lead ? <p className="lead">{lead}</p> : null}
           </div>

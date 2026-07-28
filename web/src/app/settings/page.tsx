@@ -5,7 +5,9 @@ import { requireUser, requireRoles, ROLE_LABEL } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import type { Role, UserStatus } from "@prisma/client";
+import type { MenuTheme, Role, UserStatus } from "@prisma/client";
+import { put } from "@vercel/blob";
+import { normalizeHex } from "@/lib/bill-receipt";
 
 const MANAGEABLE: Role[] = ["admin", "manager", "auditor", "server", "kitchen", "staff"];
 
@@ -24,7 +26,7 @@ export default async function SettingsPage({
   const tab = sp.tab || "profile";
   const isManager = ["admin", "manager"].includes(user.role);
 
-  const [dbUser, cafe, settings, users] = await Promise.all([
+  const [dbUser, cafe, settings, users, sampleTable] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: Number(user.id) } }),
     prisma.cafe.findUniqueOrThrow({ where: { id: cafeId } }),
     prisma.cafeSettings.findUnique({ where: { cafeId } }),
@@ -34,7 +36,18 @@ export default async function SettingsPage({
           orderBy: { fullName: "asc" },
         })
       : Promise.resolve([]),
+    prisma.restaurantTable.findFirst({
+      where: { cafeId },
+      orderBy: { tableNumber: "asc" },
+      select: { qrToken: true },
+    }),
   ]);
+
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || "http://localhost:3000";
+  const previewMenuUrl = sampleTable
+    ? `${base}/customer/menu?table=${sampleTable.qrToken}`
+    : null;
 
   async function changePassword(formData: FormData) {
     "use server";
@@ -130,15 +143,19 @@ export default async function SettingsPage({
         bankAccount: String(formData.get("bankAccount") || ""),
         bankAccountName: String(formData.get("bankAccountName") || ""),
         instructions: String(formData.get("instructions") || ""),
+        vatRate: Number(formData.get("vatRate") || 15),
+        serviceChargeRate: Number(formData.get("serviceChargeRate") || 10),
       },
       create: {
-        cafeId: u.cafeId,
+        cafeId: u.cafeId!,
         telebirrNumber: String(formData.get("telebirrNumber") || ""),
         telebirrName: String(formData.get("telebirrName") || ""),
         bankName: String(formData.get("bankName") || ""),
         bankAccount: String(formData.get("bankAccount") || ""),
         bankAccountName: String(formData.get("bankAccountName") || ""),
         instructions: String(formData.get("instructions") || ""),
+        vatRate: Number(formData.get("vatRate") || 15),
+        serviceChargeRate: Number(formData.get("serviceChargeRate") || 10),
       },
     });
     revalidatePath("/settings");
@@ -146,11 +163,80 @@ export default async function SettingsPage({
     redirect("/settings?ok=payment&tab=payment");
   }
 
+  async function saveBranding(formData: FormData) {
+    "use server";
+    const u = await requireRoles(["admin", "manager"]);
+    const displayName = String(formData.get("displayName") || "").trim() || null;
+    const tagline = String(formData.get("tagline") || "").trim() || null;
+    const menuTheme = (String(formData.get("menuTheme") || "dark_gold") === "custom"
+      ? "custom"
+      : "dark_gold") as MenuTheme;
+    const accentColor =
+      normalizeHex(String(formData.get("accentColor") || ""), "#d4af74") || "#d4af74";
+    const backgroundColor = normalizeHex(String(formData.get("backgroundColor") || "")) || null;
+    const clearLogo = formData.get("clearLogo") === "1";
+    const clearBg = formData.get("clearBg") === "1";
+
+    const existing = await prisma.cafeSettings.findUnique({ where: { cafeId: u.cafeId! } });
+    let logoUrl = clearLogo ? null : existing?.logoUrl ?? null;
+    let backgroundUrl = clearBg ? null : existing?.backgroundUrl ?? null;
+
+    const logoFile = formData.get("logo") as File | null;
+    if (logoFile && logoFile.size > 0 && process.env.BLOB_READ_WRITE_TOKEN) {
+      const buf = Buffer.from(await logoFile.arrayBuffer());
+      const blob = await put(`branding/${u.cafeId}/logo-${Date.now()}-${logoFile.name}`, buf, {
+        access: "public",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      logoUrl = blob.url;
+    }
+
+    const bgFile = formData.get("background") as File | null;
+    if (bgFile && bgFile.size > 0 && process.env.BLOB_READ_WRITE_TOKEN) {
+      const buf = Buffer.from(await bgFile.arrayBuffer());
+      const blob = await put(`branding/${u.cafeId}/bg-${Date.now()}-${bgFile.name}`, buf, {
+        access: "public",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      backgroundUrl = blob.url;
+    }
+
+    await prisma.cafeSettings.upsert({
+      where: { cafeId: u.cafeId! },
+      update: {
+        displayName,
+        tagline,
+        accentColor,
+        backgroundColor,
+        menuTheme,
+        logoUrl,
+        backgroundUrl,
+      },
+      create: {
+        cafeId: u.cafeId!,
+        displayName,
+        tagline,
+        accentColor,
+        backgroundColor,
+        menuTheme,
+        logoUrl,
+        backgroundUrl,
+      },
+    });
+
+    revalidatePath("/settings");
+    revalidatePath("/customer/menu");
+    revalidatePath("/dashboard");
+    const { redirect } = await import("next/navigation");
+    redirect("/settings?ok=branding&tab=branding");
+  }
+
   const tabs = [
     { id: "profile", label: "My account" },
     ...(isManager
       ? [
           { id: "users", label: "Users & roles" },
+          { id: "branding", label: "Branding" },
           { id: "system", label: "System" },
           { id: "payment", label: "Payment details" },
         ]
@@ -158,13 +244,18 @@ export default async function SettingsPage({
   ];
 
   return (
-    <AppShell title="Settings" eyebrow="Account" lead="Profile, staff, and payment configuration.">
+    <AppShell
+      title="Settings"
+      eyebrow="Account"
+      lead="Profile, branding, staff, and payment configuration."
+    >
       {sp.ok && (
         <div className="cas-alert cas-alert-success">
           {sp.ok === "password" && "Password updated."}
           {sp.ok === "user" && "User created."}
           {sp.ok === "saved" && "User saved."}
           {sp.ok === "payment" && "Payment details saved."}
+          {sp.ok === "branding" && "Branding saved."}
         </div>
       )}
       {sp.err === "current" && (
@@ -329,10 +420,7 @@ export default async function SettingsPage({
                           borderBottom: "1px solid var(--border)",
                         }}
                       >
-                        <form
-                          action={updateUser}
-                          style={{ display: "contents" }}
-                        >
+                        <form action={updateUser} style={{ display: "contents" }}>
                           <input type="hidden" name="userId" value={u.id} />
                           <input
                             name="fullName"
@@ -371,6 +459,147 @@ export default async function SettingsPage({
         </>
       )}
 
+      {tab === "branding" && isManager && (
+        <div className="glass-panel">
+          <div className="panel-head">
+            <h3>Customer menu branding</h3>
+            {previewMenuUrl && (
+              <a
+                href={previewMenuUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="cas-btn cas-btn-ghost cas-btn-sm"
+              >
+                Preview menu
+              </a>
+            )}
+          </div>
+          <div className="panel-body">
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+              Logo, colors, and display name appear on the guest QR menu. Staff sidebar uses the
+              display name and accent lightly.
+            </p>
+            <form action={saveBranding} encType="multipart/form-data" style={{ maxWidth: 560 }}>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Display name (optional override)
+                </label>
+                <input
+                  name="displayName"
+                  className="cas-input"
+                  placeholder={cafe.name}
+                  defaultValue={settings?.displayName || ""}
+                />
+              </div>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Tagline</label>
+                <input
+                  name="tagline"
+                  className="cas-input"
+                  placeholder="Tap a category, add to cart…"
+                  defaultValue={settings?.tagline || ""}
+                />
+              </div>
+              <div className="form-row cols-2">
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Accent color
+                  </label>
+                  <input
+                    name="accentColor"
+                    type="color"
+                    className="cas-input"
+                    defaultValue={settings?.accentColor || "#d4af74"}
+                    style={{ height: 42, padding: 4 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Background color (custom theme)
+                  </label>
+                  <input
+                    name="backgroundColor"
+                    type="color"
+                    className="cas-input"
+                    defaultValue={settings?.backgroundColor || "#0c0b09"}
+                    style={{ height: 42, padding: 4 }}
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Menu theme</label>
+                <select
+                  name="menuTheme"
+                  className="cas-select"
+                  defaultValue={settings?.menuTheme || "dark_gold"}
+                >
+                  <option value="dark_gold">Dark gold (default)</option>
+                  <option value="custom">Custom (use accent + background)</option>
+                </select>
+              </div>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Logo</label>
+                {settings?.logoUrl && (
+                  <div style={{ marginBottom: "0.5rem" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={settings.logoUrl}
+                      alt="Logo"
+                      style={{ maxHeight: 48, borderRadius: 8 }}
+                    />
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        alignItems: "center",
+                        fontSize: "0.8rem",
+                        marginTop: 6,
+                      }}
+                    >
+                      <input type="checkbox" name="clearLogo" value="1" /> Clear logo
+                    </label>
+                  </div>
+                )}
+                <input name="logo" type="file" accept="image/*" className="cas-input" />
+              </div>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Background image (optional)
+                </label>
+                {settings?.backgroundUrl && (
+                  <div style={{ marginBottom: "0.5rem" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={settings.backgroundUrl}
+                      alt="Background"
+                      style={{
+                        maxHeight: 64,
+                        borderRadius: 8,
+                        width: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        alignItems: "center",
+                        fontSize: "0.8rem",
+                        marginTop: 6,
+                      }}
+                    >
+                      <input type="checkbox" name="clearBg" value="1" /> Clear background image
+                    </label>
+                  </div>
+                )}
+                <input name="background" type="file" accept="image/*" className="cas-input" />
+              </div>
+              <button className="cas-btn cas-btn-primary">Save branding</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {tab === "system" && isManager && (
         <div className="glass-panel">
           <div className="panel-head">
@@ -404,8 +633,7 @@ export default async function SettingsPage({
               </tbody>
             </table>
             <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "1rem" }}>
-              Ingredients → Inventory · Menu items → Products · Vendors → Suppliers · Staff → Users
-              &amp; roles
+              Guest look → Branding · Payment rates → Payment details
             </p>
           </div>
         </div>
@@ -463,6 +691,32 @@ export default async function SettingsPage({
                   defaultValue={settings?.bankAccountName || ""}
                   required
                 />
+              </div>
+              <div className="form-row cols-2">
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>VAT %</label>
+                  <input
+                    name="vatRate"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    className="cas-input"
+                    defaultValue={Number(settings?.vatRate ?? 15)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Service charge %
+                  </label>
+                  <input
+                    name="serviceChargeRate"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    className="cas-input"
+                    defaultValue={Number(settings?.serviceChargeRate ?? 10)}
+                  />
+                </div>
               </div>
               <div className="form-row">
                 <textarea

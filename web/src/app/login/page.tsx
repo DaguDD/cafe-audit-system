@@ -41,7 +41,7 @@ export default async function LoginPage({
     <div className="auth-shell">
       <div className="auth-visual">
         <div className="auth-hero">
-          <p className="page-eyebrow">Cafe Audit System</p>
+          <p className="page-eyebrow">Casora</p>
           <h1>Inventory audit & cafe operations</h1>
           <p>
             Link sales to recipes, reconcile physical stock, run QR table orders, and verify mobile
@@ -52,10 +52,10 @@ export default async function LoginPage({
       <div className="auth-panel">
         <div className="auth-card">
           <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "1.25rem" }}>
-            <span className="mark">CAS</span>
+            <span className="mark">C</span>
             <div>
-              <strong style={{ display: "block", fontSize: "0.9rem" }}>Cafe Audit System</strong>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Staff sign-in</span>
+              <strong style={{ display: "block", fontSize: "0.9rem" }}>Casora</strong>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Cafe staff sign-in</span>
             </div>
           </div>
           <h2>Sign in</h2>

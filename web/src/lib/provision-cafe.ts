@@ -44,6 +44,12 @@ export async function provisionCafe(input: {
             bankAccountName: input.name.trim(),
             instructions:
               "Pay the exact total shown. Upload your payment screenshot with the reference number.",
+            displayName: input.name.trim(),
+            tagline: "Tap a category, add to cart, and we'll bring it right over.",
+            accentColor: "#d4af74",
+            menuTheme: "dark_gold",
+            vatRate: 15,
+            serviceChargeRate: 10,
           },
         },
         users: {
