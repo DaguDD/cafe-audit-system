@@ -5,6 +5,7 @@ import { requireRoles, money } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { deductRecipes } from "@/lib/inventory";
+import { ensureOpenShift } from "@/lib/shifts";
 
 export default async function SalesPage() {
   const user = await requireRoles(["admin", "manager", "server", "staff"]);
@@ -25,11 +26,7 @@ export default async function SalesPage() {
     const productId = Number(formData.get("productId"));
     const qty = Number(formData.get("qty") || 1);
     const product = await prisma.product.findFirstOrThrow({ where: { id: productId, cafeId: user.cafeId } });
-    const shift =
-      (await prisma.shift.findFirst({ where: { cafeId: user.cafeId, userId: Number(user.id), status: "open" } })) ||
-      (await prisma.shift.create({
-        data: { cafeId: user.cafeId, userId: Number(user.id), openedBy: Number(user.id), autoManaged: true },
-      }));
+    const shift = await ensureOpenShift(user.cafeId, Number(user.id));
 
     await deductRecipes([{ productId, qty }]);
     await prisma.sale.create({

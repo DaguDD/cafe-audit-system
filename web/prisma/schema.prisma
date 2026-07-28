@@ -85,7 +85,16 @@ enum WasteReason {
 
 enum ShiftStatus {
   open
+  on_lunch
   closed
+}
+
+enum ShiftCloseReason {
+  manual
+  logout
+  end_of_day
+  missed_lunch
+  lunch_ended
 }
 
 enum PoStatus {
@@ -146,6 +155,12 @@ model CafeSettings {
   instructions     String @default("")
   varianceThresholdPct Decimal @default(10) @map("variance_threshold_pct") @db.Decimal(5, 2)
   timezone         String @default("Africa/Addis_Ababa") @db.VarChar(60)
+  /// Lunch window local times (HH:mm) in cafe timezone
+  lunchEnabled     Boolean @default(true) @map("lunch_enabled")
+  lunchStart       String  @default("12:00") @map("lunch_start") @db.VarChar(5)
+  lunchEnd         String  @default("14:00") @map("lunch_end") @db.VarChar(5)
+  /// When false, lunch minutes are unpaid and deducted from payroll hours
+  lunchPaid        Boolean @default(false) @map("lunch_paid")
   /// Optional guest-facing name override (falls back to Cafe.name)
   displayName      String? @map("display_name") @db.VarChar(120)
   tagline          String? @db.VarChar(200)
@@ -164,6 +179,19 @@ model CafeSettings {
   cafe             Cafe   @relation(fields: [cafeId], references: [id], onDelete: Cascade)
 
   @@map("cafe_settings")
+}
+
+/// Singleton-style platform defaults (id = 1)
+model PlatformSettings {
+  id                        Int     @id @default(1)
+  defaultVarianceThresholdPct Decimal @default(10) @map("default_variance_threshold_pct") @db.Decimal(5, 2)
+  defaultLunchEnabled       Boolean @default(true) @map("default_lunch_enabled")
+  defaultLunchStart         String  @default("12:00") @map("default_lunch_start") @db.VarChar(5)
+  defaultLunchEnd           String  @default("14:00") @map("default_lunch_end") @db.VarChar(5)
+  defaultLunchPaid          Boolean @default(false) @map("default_lunch_paid")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
 }
 
 model Lead {
@@ -188,6 +216,8 @@ model User {
   fullName     String     @map("full_name") @db.VarChar(100)
   role         Role
   status       UserStatus @default(active)
+  /// Hourly pay rate in ETB for payroll estimates (null = not set)
+  hourlyRate   Decimal?   @map("hourly_rate") @db.Decimal(10, 2)
   createdAt    DateTime   @default(now()) @map("created_at")
 
   cafe               Cafe?              @relation(fields: [cafeId], references: [id])
@@ -302,25 +332,30 @@ model Recipe {
 }
 
 model Shift {
-  id          Int         @id @default(autoincrement()) @map("shift_id")
-  cafeId      Int         @map("cafe_id")
-  userId      Int         @map("user_id")
-  openedBy    Int         @map("opened_by")
-  openedAt    DateTime    @default(now()) @map("opened_at")
-  closedAt    DateTime?   @map("closed_at")
-  status      ShiftStatus @default(open)
-  autoManaged Boolean     @default(false) @map("auto_managed")
-  notes       String?
-  cafe        Cafe        @relation(fields: [cafeId], references: [id])
-  user        User        @relation("ShiftStaff", fields: [userId], references: [id])
-  opener      User        @relation("ShiftOpener", fields: [openedBy], references: [id])
-  sales       Sale[]
-  auditLogs   AuditLog[]
-  wasteLogs   WasteLog[]
-  orders      Order[]
+  id              Int              @id @default(autoincrement()) @map("shift_id")
+  cafeId          Int              @map("cafe_id")
+  userId          Int              @map("user_id")
+  openedBy        Int              @map("opened_by")
+  openedAt        DateTime         @default(now()) @map("opened_at")
+  closedAt        DateTime?        @map("closed_at")
+  status          ShiftStatus      @default(open)
+  autoManaged     Boolean          @default(false) @map("auto_managed")
+  notes           String?
+  lunchStartedAt  DateTime?        @map("lunch_started_at")
+  lunchEndedAt    DateTime?        @map("lunch_ended_at")
+  lunchMinutes    Int?             @map("lunch_minutes")
+  closeReason     ShiftCloseReason? @map("close_reason")
+  cafe            Cafe             @relation(fields: [cafeId], references: [id])
+  user            User             @relation("ShiftStaff", fields: [userId], references: [id])
+  opener          User             @relation("ShiftOpener", fields: [openedBy], references: [id])
+  sales           Sale[]
+  auditLogs       AuditLog[]
+  wasteLogs       WasteLog[]
+  orders          Order[]
   openingQuantities OpeningQuantity[]
 
   @@index([cafeId])
+  @@index([cafeId, userId, status])
   @@map("shifts")
 }
 

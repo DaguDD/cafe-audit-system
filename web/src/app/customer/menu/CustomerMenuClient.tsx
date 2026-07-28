@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { BillReceipt } from "@/lib/bill-receipt";
 import { categoryIcon, productIcon } from "@/lib/bill-receipt";
+import SlowNetSplash from "@/components/SlowNetSplash";
 import "./customer-menu.css";
 
 export type MenuProduct = {
@@ -119,7 +120,29 @@ export default function CustomerMenuClient({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pulse, setPulse] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [splashOn, setSplashOn] = useState(true);
+  const [skipBrandSplash, setSkipBrandSplash] = useState(false);
+  const [menuReady, setMenuReady] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setMenuReady(true);
+    const conn = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const slow =
+      !!conn &&
+      (conn.saveData ||
+        conn.effectiveType === "2g" ||
+        conn.effectiveType === "slow-2g");
+    if (slow) {
+      setSkipBrandSplash(true);
+      setSplashOn(false);
+      return;
+    }
+    const t = setTimeout(() => setSplashOn(false), 1100);
+    return () => clearTimeout(t);
+  }, []);
 
   const styleVars = {
     ["--cm-accent" as string]: branding.accentColor,
@@ -256,13 +279,30 @@ export default function CustomerMenuClient({
       className={`cm-body ${vibeClass} ${branding.backgroundUrl ? "has-bg-image" : ""}`}
       style={styleVars}
     >
+      <SlowNetSplash
+        brandName={branding.displayName}
+        logoUrl={branding.logoUrl}
+        accent={branding.accentColor}
+        ready={menuReady}
+      />
       {branding.backgroundUrl && (
         <div
           className="cm-bg-layer"
           style={{ backgroundImage: `url(${branding.backgroundUrl})` }}
         />
       )}
-      <div className="cm-inner">
+      {splashOn && !skipBrandSplash && (
+        <div
+          className="cm-brand-splash"
+          aria-hidden
+          onAnimationEnd={(e) => {
+            if (e.animationName === "cmSplashOut") setSplashOn(false);
+          }}
+        >
+          <span>{branding.displayName}</span>
+        </div>
+      )}
+      <div className={`cm-inner ${splashOn && !skipBrandSplash ? "cm-enter" : ""}`}>
         <header className="cm-hero">
           {branding.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element

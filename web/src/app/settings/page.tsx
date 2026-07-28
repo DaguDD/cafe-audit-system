@@ -6,15 +6,16 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import type { FontVibe, MenuTheme, Role, UserStatus } from "@prisma/client";
-import { put } from "@vercel/blob";
 import { normalizeHex } from "@/lib/bill-receipt";
+import { uploadBrandingImage } from "@/lib/branding-upload";
+import PasswordField from "@/components/PasswordField";
 
 const MANAGEABLE: Role[] = ["admin", "manager", "auditor", "server", "kitchen", "staff"];
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; err?: string; tab?: string }>;
+  searchParams: Promise<{ ok?: string; err?: string; tab?: string; detail?: string }>;
 }) {
   const user = await requireUser();
   if (user.role === "platform_admin") {
@@ -112,13 +113,17 @@ export default async function SettingsPage({
     const role = String(formData.get("role") || "staff") as Role;
     const status = String(formData.get("status") || "active") as UserStatus;
     const newPassword = String(formData.get("newPassword") || "");
+    const rateRaw = String(formData.get("hourlyRate") || "").trim();
+    const hourlyRate = rateRaw === "" ? null : Number(rateRaw);
     if (!id || !fullName || !MANAGEABLE.includes(role)) return;
+    if (hourlyRate != null && (Number.isNaN(hourlyRate) || hourlyRate < 0)) return;
     const data: {
       fullName: string;
       role: Role;
       status: UserStatus;
+      hourlyRate: number | null;
       passwordHash?: string;
-    } = { fullName, role, status };
+    } = { fullName, role, status, hourlyRate };
     if (newPassword.length >= 6) {
       data.passwordHash = await bcrypt.hash(newPassword, 10);
     }
@@ -127,8 +132,36 @@ export default async function SettingsPage({
       data,
     });
     revalidatePath("/settings");
+    revalidatePath("/payroll");
     const { redirect } = await import("next/navigation");
     redirect("/settings?ok=saved&tab=users");
+  }
+
+  async function saveSystem(formData: FormData) {
+    "use server";
+    const u = await requireRoles(["admin", "manager"]);
+    const timezone = String(formData.get("timezone") || "Africa/Addis_Ababa").trim() || "Africa/Addis_Ababa";
+    const lunchEnabled = formData.get("lunchEnabled") === "1";
+    const lunchPaid = formData.get("lunchPaid") === "1";
+    const lunchStart = String(formData.get("lunchStart") || "12:00").slice(0, 5);
+    const lunchEnd = String(formData.get("lunchEnd") || "14:00").slice(0, 5);
+    await prisma.cafeSettings.upsert({
+      where: { cafeId: u.cafeId },
+      update: { timezone, lunchEnabled, lunchPaid, lunchStart, lunchEnd },
+      create: {
+        cafeId: u.cafeId!,
+        timezone,
+        lunchEnabled,
+        lunchPaid,
+        lunchStart,
+        lunchEnd,
+      },
+    });
+    revalidatePath("/settings");
+    revalidatePath("/shifts");
+    revalidatePath("/payroll");
+    const { redirect } = await import("next/navigation");
+    redirect("/settings?ok=system&tab=system");
   }
 
   async function savePayment(formData: FormData) {
@@ -188,25 +221,26 @@ export default async function SettingsPage({
     const existing = await prisma.cafeSettings.findUnique({ where: { cafeId: u.cafeId! } });
     let logoUrl = clearLogo ? null : existing?.logoUrl ?? null;
     let backgroundUrl = clearBg ? null : existing?.backgroundUrl ?? null;
+    let uploadNote = "";
 
-    const logoFile = formData.get("logo") as File | null;
-    if (logoFile && logoFile.size > 0 && process.env.BLOB_READ_WRITE_TOKEN) {
-      const buf = Buffer.from(await logoFile.arrayBuffer());
-      const blob = await put(`branding/${u.cafeId}/logo-${Date.now()}-${logoFile.name}`, buf, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      logoUrl = blob.url;
-    }
+    try {
+      const logoFile = formData.get("logo") as File | null;
+      if (logoFile && logoFile.size > 0) {
+        const up = await uploadBrandingImage(u.cafeId!, "logo", logoFile);
+        logoUrl = up.url;
+        if (up.storage === "local") uploadNote = "local";
+      }
 
-    const bgFile = formData.get("background") as File | null;
-    if (bgFile && bgFile.size > 0 && process.env.BLOB_READ_WRITE_TOKEN) {
-      const buf = Buffer.from(await bgFile.arrayBuffer());
-      const blob = await put(`branding/${u.cafeId}/bg-${Date.now()}-${bgFile.name}`, buf, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      backgroundUrl = blob.url;
+      const bgFile = formData.get("background") as File | null;
+      if (bgFile && bgFile.size > 0) {
+        const up = await uploadBrandingImage(u.cafeId!, "bg", bgFile);
+        backgroundUrl = up.url;
+        if (up.storage === "local") uploadNote = "local";
+      }
+    } catch (e) {
+      const { redirect } = await import("next/navigation");
+      const msg = e instanceof Error ? e.message : "upload";
+      redirect(`/settings?err=upload&tab=branding&detail=${encodeURIComponent(msg)}`);
     }
 
     await prisma.cafeSettings.upsert({
@@ -246,7 +280,11 @@ export default async function SettingsPage({
     revalidatePath("/customer/menu");
     revalidatePath("/dashboard");
     const { redirect } = await import("next/navigation");
-    redirect("/settings?ok=branding&tab=branding");
+    redirect(
+      uploadNote === "local"
+        ? "/settings?ok=branding_local&tab=branding"
+        : "/settings?ok=branding&tab=branding"
+    );
   }
 
   const tabs = [
@@ -273,7 +311,16 @@ export default async function SettingsPage({
           {sp.ok === "user" && "User created."}
           {sp.ok === "saved" && "User saved."}
           {sp.ok === "payment" && "Payment details saved."}
-          {sp.ok === "branding" && "Branding saved."}
+          {sp.ok === "branding" && "Branding saved — guest menu and staff accent updated."}
+          {sp.ok === "branding_local" &&
+            "Branding saved (images stored locally under /uploads — add BLOB_READ_WRITE_TOKEN on Vercel for durable CDN uploads)."}
+          {sp.ok === "system" && "System settings saved."}
+        </div>
+      )}
+      {sp.err === "upload" && (
+        <div className="cas-alert cas-alert-warning">
+          Image upload failed{sp.detail ? `: ${decodeURIComponent(sp.detail)}` : "."} Text fields were
+          not overwritten.
         </div>
       )}
       {sp.err === "current" && (
@@ -345,31 +392,24 @@ export default async function SettingsPage({
                   <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                     Current password
                   </label>
-                  <input type="password" name="current" required className="cas-input" />
+                  <PasswordField name="current" required autoComplete="current-password" />
                 </div>
                 <div className="form-row cols-2">
                   <div>
                     <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                       New password
                     </label>
-                    <input
-                      type="password"
-                      name="next"
-                      minLength={6}
-                      required
-                      className="cas-input"
-                    />
+                    <PasswordField name="next" required minLength={6} autoComplete="new-password" />
                   </div>
                   <div>
                     <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
                       Confirm
                     </label>
-                    <input
-                      type="password"
+                    <PasswordField
                       name="confirm"
-                      minLength={6}
                       required
-                      className="cas-input"
+                      minLength={6}
+                      autoComplete="new-password"
                     />
                   </div>
                 </div>
@@ -431,7 +471,7 @@ export default async function SettingsPage({
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "1.2fr 1fr 1fr 0.8fr",
+                          gridTemplateColumns: "1.1fr 0.9fr 0.9fr 0.7fr 0.7fr 1fr auto",
                           gap: "0.5rem",
                           padding: "0.65rem 0.75rem",
                           alignItems: "center",
@@ -460,10 +500,19 @@ export default async function SettingsPage({
                             <option value="inactive">inactive</option>
                           </select>
                           <input
-                            name="newPassword"
-                            type="password"
+                            name="hourlyRate"
+                            type="number"
+                            step="0.01"
+                            min={0}
                             className="cas-input"
+                            placeholder="Hourly ETB"
+                            defaultValue={u.hourlyRate != null ? Number(u.hourlyRate) : ""}
+                          />
+                          <PasswordField
+                            name="newPassword"
                             placeholder="New password (optional)"
+                            minLength={6}
+                            autoComplete="new-password"
                           />
                           <button className="cas-btn cas-btn-success cas-btn-sm">Save</button>
                         </form>
@@ -507,7 +556,9 @@ export default async function SettingsPage({
             </div>
             <div className="panel-body">
               <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
-                Guest QR menu and a light touch on the staff sidebar (logo + accent).
+                Guest QR menu and staff sidebar (logo + accent). Uploads use Vercel Blob when
+                configured; otherwise files save under <code>/uploads/branding</code>. Open the live
+                menu link to verify preview matches guests.
               </p>
               <form action={saveBranding} encType="multipart/form-data">
                 <div className="form-row">
@@ -817,7 +868,7 @@ export default async function SettingsPage({
             <h3>System configuration</h3>
           </div>
           <div className="panel-body">
-            <table className="cas-table" style={{ maxWidth: 480 }}>
+            <table className="cas-table" style={{ maxWidth: 520, marginBottom: "1rem" }}>
               <tbody>
                 <tr>
                   <td style={{ color: "var(--text-muted)" }}>Cafe name</td>
@@ -834,17 +885,71 @@ export default async function SettingsPage({
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ color: "var(--text-muted)" }}>Timezone</td>
-                  <td>{settings?.timezone || "Africa/Addis_Ababa"}</td>
-                </tr>
-                <tr>
                   <td style={{ color: "var(--text-muted)" }}>Audit variance threshold</td>
-                  <td>{Number(settings?.varianceThresholdPct ?? 10)}%</td>
+                  <td>
+                    {Number(settings?.varianceThresholdPct ?? 10)}%
+                    <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                      Platform sets the default for new cafes; override from Platform → cafe detail.
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
+            <form action={saveSystem} style={{ maxWidth: 520 }}>
+              <div className="form-row">
+                <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Timezone</label>
+                <input
+                  name="timezone"
+                  className="cas-input"
+                  defaultValue={settings?.timezone || "Africa/Addis_Ababa"}
+                />
+              </div>
+              <div className="form-row cols-2">
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Lunch start
+                  </label>
+                  <input
+                    name="lunchStart"
+                    type="time"
+                    className="cas-input"
+                    defaultValue={settings?.lunchStart || "12:00"}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Lunch end</label>
+                  <input
+                    name="lunchEnd"
+                    type="time"
+                    className="cas-input"
+                    defaultValue={settings?.lunchEnd || "14:00"}
+                  />
+                </div>
+              </div>
+              <div className="form-row cols-2">
+                <label style={{ fontSize: "0.85rem", display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    name="lunchEnabled"
+                    value="1"
+                    defaultChecked={settings?.lunchEnabled !== false}
+                  />
+                  Lunch window enabled
+                </label>
+                <label style={{ fontSize: "0.85rem", display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    name="lunchPaid"
+                    value="1"
+                    defaultChecked={!!settings?.lunchPaid}
+                  />
+                  Lunch is paid
+                </label>
+              </div>
+              <button className="cas-btn cas-btn-primary">Save system settings</button>
+            </form>
             <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "1rem" }}>
-              Guest look → Branding · Payment rates → Payment details
+              Guest look → Branding · Rates → Payroll · Payment details → Payment tab
             </p>
           </div>
         </div>

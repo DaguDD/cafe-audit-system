@@ -32,6 +32,12 @@ async function ensureCafe() {
       menuTheme: "dark_gold",
       vatRate: 15,
       serviceChargeRate: 10,
+      lunchEnabled: true,
+      lunchStart: "12:00",
+      lunchEnd: "14:00",
+      lunchPaid: false,
+      timezone: "Africa/Addis_Ababa",
+      varianceThresholdPct: 10,
     },
     create: {
       cafeId: cafe.id,
@@ -52,6 +58,12 @@ async function ensureCafe() {
       menuTheme: "dark_gold",
       vatRate: 15,
       serviceChargeRate: 10,
+      lunchEnabled: true,
+      lunchStart: "12:00",
+      lunchEnd: "14:00",
+      lunchPaid: false,
+      timezone: "Africa/Addis_Ababa",
+      varianceThresholdPct: 10,
     },
   });
 
@@ -61,6 +73,19 @@ async function ensureCafe() {
 async function main() {
   const passwordHash = await bcrypt.hash("admin123", 12);
   const cafe = await ensureCafe();
+
+  await prisma.platformSettings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      defaultVarianceThresholdPct: 10,
+      defaultLunchEnabled: true,
+      defaultLunchStart: "12:00",
+      defaultLunchEnd: "14:00",
+      defaultLunchPaid: false,
+    },
+  });
 
   await prisma.user.upsert({
     where: { username: "platform" },
@@ -81,13 +106,13 @@ async function main() {
     },
   });
 
-  const users: { username: string; fullName: string; role: Role }[] = [
-    { username: "admin", fullName: "System Admin", role: "admin" },
-    { username: "manager", fullName: "Dagim Dereje", role: "manager" },
-    { username: "auditor", fullName: "Hana Wabe", role: "auditor" },
-    { username: "waiter1", fullName: "Biruk G/Tinsae", role: "server" },
-    { username: "cashier1", fullName: "Kebede Alemu", role: "staff" },
-    { username: "kitchen1", fullName: "Sara Bekele", role: "kitchen" },
+  const users: { username: string; fullName: string; role: Role; hourlyRate: number }[] = [
+    { username: "admin", fullName: "System Admin", role: "admin", hourlyRate: 150 },
+    { username: "manager", fullName: "Dagim Dereje", role: "manager", hourlyRate: 140 },
+    { username: "auditor", fullName: "Hana Wabe", role: "auditor", hourlyRate: 110 },
+    { username: "waiter1", fullName: "Biruk G/Tinsae", role: "server", hourlyRate: 80 },
+    { username: "cashier1", fullName: "Kebede Alemu", role: "staff", hourlyRate: 75 },
+    { username: "kitchen1", fullName: "Sara Bekele", role: "kitchen", hourlyRate: 90 },
   ];
 
   for (const u of users) {
@@ -99,8 +124,17 @@ async function main() {
         role: u.role,
         status: "active",
         cafeId: cafe.id,
+        hourlyRate: u.hourlyRate,
       },
-      create: { ...u, passwordHash, status: "active", cafeId: cafe.id },
+      create: {
+        username: u.username,
+        fullName: u.fullName,
+        role: u.role,
+        passwordHash,
+        status: "active",
+        cafeId: cafe.id,
+        hourlyRate: u.hourlyRate,
+      },
     });
   }
 

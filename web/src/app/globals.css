@@ -376,6 +376,25 @@ a { color: inherit; text-decoration: none; }
 .badge-warning { color: var(--warning); border-color: rgba(240,180,41,0.4); }
 .badge-danger { color: var(--danger); border-color: rgba(240,113,120,0.4); }
 
+.row-low-stock td {
+  background: rgba(240, 113, 120, 0.08);
+}
+.row-low-stock td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+.cas-table-edit-row td {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem;
+}
+.cas-table-edit-row[hidden] {
+  display: none;
+}
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .product-tile {
   border: 1px solid var(--border);
   border-radius: 8px;

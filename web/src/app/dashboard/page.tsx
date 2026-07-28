@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       _sum: { total: true },
       where: { cafeId, soldAt: { gte: todayStart } },
     }),
-    prisma.shift.count({ where: { cafeId, status: "open" } }),
+    prisma.shift.count({ where: { cafeId, status: { in: ["open", "on_lunch"] } } }),
     ["admin", "manager", "auditor"].includes(role)
       ? prisma.purchaseOrder.count({ where: { cafeId, status: "pending" } })
       : Promise.resolve(0),
@@ -70,7 +70,7 @@ export default async function DashboardPage() {
       select: { soldAt: true, total: true },
     }),
     prisma.shift.findFirst({
-      where: { cafeId, userId: Number(user.id), status: "open" },
+      where: { cafeId, userId: Number(user.id), status: { in: ["open", "on_lunch"] } },
       orderBy: { openedAt: "desc" },
     }),
   ]);
@@ -104,12 +104,24 @@ export default async function DashboardPage() {
     >
       {myShift ? (
         <div className="cas-alert cas-alert-info">
-          Shift active since <strong className="font-mono">{myShift.openedAt.toLocaleString()}</strong>
-          {myShift.autoManaged ? " · auto" : ""}
+          {myShift.status === "on_lunch" ? (
+            <>
+              Out for lunch since{" "}
+              <strong className="font-mono">
+                {myShift.lunchStartedAt?.toLocaleString() || myShift.openedAt.toLocaleString()}
+              </strong>
+              {" · "}use <em>Back from lunch</em> in the top bar when you return.
+            </>
+          ) : (
+            <>
+              Shift active since <strong className="font-mono">{myShift.openedAt.toLocaleString()}</strong>
+              {myShift.autoManaged ? " · auto" : ""}
+            </>
+          )}
         </div>
-      ) : ["staff", "server", "kitchen"].includes(role) ? (
+      ) : ["staff", "server", "kitchen", "manager", "admin"].includes(role) ? (
         <div className="cas-alert cas-alert-warning">
-          Not clocked in — open a shift from Shifts, or a sale/payment will auto-start one.
+          Not clocked in yet — signing in or your first desk action will auto-start a shift.
         </div>
       ) : null}
 

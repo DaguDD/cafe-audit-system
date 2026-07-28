@@ -98,6 +98,41 @@ export default async function CafeDetailPage({
                 </tr>
               </tbody>
             </table>
+            <form
+              action={async (formData) => {
+                "use server";
+                await requirePlatformAdmin();
+                const pct = Number(formData.get("varianceThresholdPct") || 10);
+                await prisma.cafeSettings.upsert({
+                  where: { cafeId },
+                  update: { varianceThresholdPct: Number.isFinite(pct) ? pct : 10 },
+                  create: {
+                    cafeId,
+                    varianceThresholdPct: Number.isFinite(pct) ? pct : 10,
+                  },
+                });
+                const { revalidatePath } = await import("next/cache");
+                revalidatePath(`/platform/cafes/${cafeId}`);
+              }}
+              style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "end" }}
+            >
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  Audit variance threshold %
+                </label>
+                <input
+                  name="varianceThresholdPct"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  className="cas-input"
+                  defaultValue={Number(cafe.settings?.varianceThresholdPct ?? 10)}
+                />
+              </div>
+              <button className="cas-btn cas-btn-primary cas-btn-sm" type="submit">
+                Save
+              </button>
+            </form>
             <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "1rem" }}>
               Impersonation: sign out, then sign in as cafe admin{" "}
               <strong className="font-mono">{admin?.username || "(none)"}</strong> (temp password

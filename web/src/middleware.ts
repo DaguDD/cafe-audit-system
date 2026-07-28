@@ -60,6 +60,7 @@ export const config = {
     "/server/:path*",
     "/waste/:path*",
     "/shifts/:path*",
+    "/payroll/:path*",
     "/suppliers/:path*",
     "/reports/:path*",
     "/settings/:path*",

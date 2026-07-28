@@ -67,6 +67,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           },
         });
 
+        // V2-style auto clock-in for cafe floor roles (incl. managers)
+        if (user.cafeId && user.role !== "platform_admin") {
+          const { autoClockIn } = await import("@/lib/shifts");
+          try {
+            await autoClockIn({
+              cafeId: user.cafeId,
+              userId: user.id,
+              role: user.role,
+            });
+          } catch {
+            // Never block login on shift side-effects
+          }
+        }
+
         return {
           id: String(user.id),
           name: user.fullName,

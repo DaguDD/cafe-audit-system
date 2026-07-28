@@ -5,6 +5,16 @@ import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABEL } from "@/lib/auth-helpers";
 import SidebarNav, { type NavSection } from "./SidebarNav";
+import LiveClock from "./LiveClock";
+import LunchControls from "./LunchControls";
+import { syncShiftPresence } from "@/lib/shift-sync";
+import {
+  endLunch,
+  getCafeLunchSettings,
+  isWithinLunchWindow,
+  startLunch,
+  findActiveShift,
+} from "@/lib/shifts";
 
 function can(role: Role | undefined, roles: Role[]) {
   return !!role && roles.includes(role);
@@ -25,9 +35,14 @@ export default async function AppShell({
   const role = session?.user?.role;
   const cafeId = session?.user?.cafeId ?? null;
   const name = session?.user?.name || "User";
+  const userId = session?.user?.id ? Number(session.user.id) : null;
   const cafeScope = cafeId ? { cafeId } : { cafeId: -1 };
 
-  const [pendingPayments, pendingWaiter, cafe] = await Promise.all([
+  if (cafeId && userId && role && role !== "platform_admin") {
+    await syncShiftPresence({ cafeId, userId, role });
+  }
+
+  const [pendingPayments, pendingWaiter, cafe, myShift] = await Promise.all([
     can(role, ["admin", "manager", "server", "staff"])
       ? prisma.paymentSubmission.count({ where: { ...cafeScope, status: "pending" } })
       : Promise.resolve(0),
@@ -37,13 +52,57 @@ export default async function AppShell({
     cafeId
       ? prisma.cafe.findUnique({
           where: { id: cafeId },
-          include: { settings: { select: { displayName: true, logoUrl: true, accentColor: true } } },
+          include: {
+            settings: {
+              select: {
+                displayName: true,
+                logoUrl: true,
+                accentColor: true,
+                timezone: true,
+                lunchEnabled: true,
+                lunchStart: true,
+                lunchEnd: true,
+              },
+            },
+          },
         })
+      : Promise.resolve(null),
+    cafeId && userId
+      ? findActiveShift(cafeId, userId)
       : Promise.resolve(null),
   ]);
 
   const cafeLabel = cafe?.settings?.displayName?.trim() || cafe?.name || "Cafe";
   const accent = cafe?.settings?.accentColor?.trim() || undefined;
+  const tz = cafe?.settings?.timezone || "Africa/Addis_Ababa";
+  const lunchSettings = cafeId
+    ? await getCafeLunchSettings(cafeId)
+    : {
+        lunchEnabled: true,
+        lunchStart: "12:00",
+        lunchEnd: "14:00",
+        lunchPaid: false,
+        timezone: tz,
+      };
+  const inLunchWindow = isWithinLunchWindow(new Date(), lunchSettings);
+  const shiftStatus =
+    myShift?.status === "on_lunch" || myShift?.status === "open" ? myShift.status : null;
+
+  async function startLunchAction() {
+    "use server";
+    const s = await auth();
+    if (!s?.user?.cafeId) return { ok: false, message: "Not signed in" };
+    const r = await startLunch(s.user.cafeId, Number(s.user.id));
+    return { ok: r.ok, message: r.ok ? undefined : r.message };
+  }
+
+  async function endLunchAction() {
+    "use server";
+    const s = await auth();
+    if (!s?.user?.cafeId) return { ok: false, message: "Not signed in" };
+    const r = await endLunch(s.user.cafeId, Number(s.user.id));
+    return { ok: r.ok, message: r.ok ? undefined : r.message };
+  }
 
   const sections: NavSection[] = [];
 
@@ -86,8 +145,14 @@ export default async function AppShell({
       items: [
         { href: "/tables", label: "Tables & QR" },
         { href: "/shifts", label: "Shifts" },
+        { href: "/payroll", label: "Payroll" },
         { href: "/suppliers", label: "Suppliers" },
       ],
+    });
+  } else if (can(role, ["auditor"])) {
+    sections.push({
+      title: "Management",
+      items: [{ href: "/payroll", label: "Payroll" }],
     });
   }
 
@@ -153,7 +218,7 @@ export default async function AppShell({
 
       <div className="app-main-wrap">
         <header className="app-topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
             {cafe?.settings?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -167,8 +232,16 @@ export default async function AppShell({
               </span>
             )}
             <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{cafeLabel}</span>
+            <LiveClock timeZone={tz} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+            <LunchControls
+              shiftStatus={shiftStatus}
+              inLunchWindow={inLunchWindow && !!lunchSettings.lunchEnabled}
+              lunchLabel={`Lunch window ${lunchSettings.lunchStart}–${lunchSettings.lunchEnd}`}
+              startLunchAction={startLunchAction}
+              endLunchAction={endLunchAction}
+            />
             <span className="system-status" style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               <span className="status-dot" />
               Online

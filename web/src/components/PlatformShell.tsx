@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
+import LiveClock from "./LiveClock";
 
 const NAV = [
   { href: "/platform", label: "Overview" },
@@ -9,6 +10,7 @@ const NAV = [
   { href: "/platform/leads", label: "Leads" },
   { href: "/platform/analytics", label: "Analytics" },
   { href: "/platform/troubleshooting", label: "Troubleshooting" },
+  { href: "/platform/settings", label: "Settings" },
 ];
 
 export default async function PlatformShell({
@@ -70,9 +72,12 @@ export default async function PlatformShell({
       </aside>
       <div className="app-main-wrap">
         <header className="app-topbar">
-          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-            Casora Platform · cross-cafe
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+              Casora Platform · cross-cafe
+            </span>
+            <LiveClock timeZone="Africa/Addis_Ababa" />
+          </div>
           <nav className="mobile-nav" style={{ border: 0, padding: 0, background: "transparent" }}>
             {NAV.map((item) => (
               <Link key={item.href} href={item.href}>

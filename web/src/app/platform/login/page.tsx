@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { auth, signIn, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import PasswordField from "@/components/PasswordField";
 
 function errorMessage(code: string | undefined): string | null {
   if (!code) return null;
@@ -95,13 +96,7 @@ export default async function PlatformLoginPage({
             </div>
             <div className="form-row">
               <label style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Password</label>
-              <input
-                name="password"
-                type="password"
-                required
-                className="cas-input"
-                autoComplete="current-password"
-              />
+              <PasswordField name="password" required autoComplete="current-password" />
             </div>
             <button type="submit" className="cas-btn cas-btn-primary cas-btn-block">
               Enter platform

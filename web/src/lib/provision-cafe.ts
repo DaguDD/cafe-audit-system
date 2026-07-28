@@ -26,6 +26,13 @@ export async function provisionCafe(input: {
   const passwordHash = await bcrypt.hash(input.adminPassword || "admin123", 12);
   const adminUsername = input.adminUsername || `${slug}-admin`;
 
+  const platform = await prisma.platformSettings.findUnique({ where: { id: 1 } });
+  const variance = Number(platform?.defaultVarianceThresholdPct ?? 10);
+  const lunchEnabled = platform?.defaultLunchEnabled ?? true;
+  const lunchStart = platform?.defaultLunchStart ?? "12:00";
+  const lunchEnd = platform?.defaultLunchEnd ?? "14:00";
+  const lunchPaid = platform?.defaultLunchPaid ?? false;
+
   const cafe = await prisma.$transaction(async (tx) => {
     const c = await tx.cafe.create({
       data: {
@@ -54,6 +61,12 @@ export async function provisionCafe(input: {
             menuTheme: "dark_gold",
             vatRate: 15,
             serviceChargeRate: 10,
+            varianceThresholdPct: variance,
+            lunchEnabled,
+            lunchStart,
+            lunchEnd,
+            lunchPaid,
+            timezone: "Africa/Addis_Ababa",
           },
         },
         users: {
@@ -63,6 +76,7 @@ export async function provisionCafe(input: {
             role: "admin",
             passwordHash,
             status: "active",
+            hourlyRate: 120,
           },
         },
       },

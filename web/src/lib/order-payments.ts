@@ -1,20 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { deductRecipes } from "@/lib/inventory";
-
-async function ensureOpenShift(cafeId: number, userId: number) {
-  const existing = await prisma.shift.findFirst({
-    where: { cafeId, userId, status: "open" },
-  });
-  if (existing) return existing;
-  return prisma.shift.create({
-    data: {
-      cafeId,
-      userId,
-      openedBy: userId,
-      autoManaged: true,
-    },
-  });
-}
+import { ensureOpenShift } from "@/lib/shifts";
 
 /** Mark a single open order paid (cash). Mirrors V2 Order::pay. */
 export async function payOrder(opts: {

@@ -102,11 +102,6 @@ export default async function LandingPage({
         .landing-hero-inner {
           position: relative; z-index: 1;
           max-width: 1120px; margin: 0 auto; width: 100%;
-          animation: land-rise 0.9s ease both;
-        }
-        @keyframes land-rise {
-          from { opacity: 0; transform: translateY(18px); }
-          to { opacity: 1; transform: none; }
         }
         .landing-hero .brand-hero {
           font-family: var(--land-font-display);
@@ -115,18 +110,58 @@ export default async function LandingPage({
           letter-spacing: -0.04em; font-weight: 700;
           color: var(--land-text);
           text-shadow: 0 8px 40px rgba(0,0,0,0.45);
+          animation: land-brand 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
         .landing-hero .headline {
           font-size: clamp(1.15rem, 2.4vw, 1.45rem);
           font-weight: 500; margin: 0 0 0.55rem;
           max-width: 28rem; line-height: 1.35;
           color: #ebe4db;
+          animation: land-rise 0.8s ease 0.12s both;
         }
         .landing-hero .sub {
           color: var(--land-muted); font-size: 1rem; max-width: 28rem;
           line-height: 1.55; margin: 0 0 1.6rem;
+          animation: land-rise 0.8s ease 0.22s both;
         }
-        .landing-cta { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+        .landing-cta {
+          display: flex; flex-wrap: wrap; gap: 0.65rem;
+          animation: land-rise 0.85s ease 0.34s both;
+        }
+        @keyframes land-brand {
+          from { opacity: 0; transform: translateY(28px) scale(0.98); filter: blur(4px); }
+          to { opacity: 1; transform: none; filter: none; }
+        }
+        @keyframes land-rise {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: none; }
+        }
+        .landing-nav {
+          position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 1.15rem 1.5rem; max-width: 1120px; margin: 0 auto;
+          animation: land-fade 0.7s ease both;
+        }
+        @keyframes land-fade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .landing-section,
+        .owners-band {
+          animation: land-section 0.7s ease both;
+          animation-timeline: view();
+          animation-range: entry 8% cover 28%;
+        }
+        @keyframes land-section {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: none; }
+        }
+        @supports not (animation-timeline: view()) {
+          .landing-section,
+          .owners-band {
+            animation: land-rise 0.9s ease both;
+          }
+        }
         .landing-btn {
           display: inline-flex; align-items: center; justify-content: center;
           padding: 0.75rem 1.25rem; border-radius: 10px; font-weight: 600;
@@ -186,6 +221,150 @@ export default async function LandingPage({
         .step .n::before { content: "0" counter(step); }
         .step h3 { margin: 0.15rem 0 0.35rem; font-size: 1.1rem; }
         .step p { margin: 0; color: var(--land-muted); font-size: 0.9rem; line-height: 1.45; }
+
+        /* Ops workflow story: QR → order → kitchen → pay → audit */
+        .ops-story {
+          margin-top: 0.5rem;
+        }
+        .ops-rail {
+          display: grid;
+          gap: 0.85rem;
+          position: relative;
+        }
+        @media (min-width: 800px) {
+          .ops-rail {
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.65rem;
+            align-items: stretch;
+          }
+          .ops-rail::before {
+            content: "";
+            position: absolute;
+            top: 2.15rem;
+            left: 8%;
+            right: 8%;
+            height: 1px;
+            background: linear-gradient(90deg,
+              transparent,
+              rgba(212,165,116,0.35) 15%,
+              rgba(212,165,116,0.35) 85%,
+              transparent);
+            pointer-events: none;
+          }
+        }
+        .ops-step {
+          position: relative;
+          padding: 1rem 0.85rem 1.05rem;
+          border-top: 1px solid rgba(61,53,44,0.9);
+          opacity: 0;
+          transform: translateY(14px);
+          animation: ops-step-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+          animation-timeline: view();
+          animation-range: entry 0% cover 32%;
+        }
+        .ops-step:nth-child(1) { animation-delay: 0.02s; }
+        .ops-step:nth-child(2) { animation-delay: 0.1s; }
+        .ops-step:nth-child(3) { animation-delay: 0.18s; }
+        .ops-step:nth-child(4) { animation-delay: 0.26s; }
+        .ops-step:nth-child(5) { animation-delay: 0.34s; }
+        @keyframes ops-step-in {
+          to { opacity: 1; transform: none; }
+        }
+        @supports not (animation-timeline: view()) {
+          .ops-step {
+            animation: ops-step-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+          }
+        }
+        .ops-icon {
+          width: 44px; height: 44px; border-radius: 12px;
+          display: grid; place-items: center;
+          margin-bottom: 0.75rem;
+          background: rgba(212,165,116,0.1);
+          border: 1px solid rgba(212,165,116,0.22);
+          color: var(--land-accent);
+          position: relative;
+          z-index: 1;
+        }
+        .ops-icon svg {
+          width: 22px; height: 22px;
+          stroke: currentColor; fill: none;
+          stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+        }
+        .ops-icon .draw {
+          stroke-dasharray: 48;
+          stroke-dashoffset: 48;
+          animation: ops-draw 1.1s ease forwards;
+          animation-timeline: view();
+          animation-range: entry 10% cover 40%;
+        }
+        .ops-step:nth-child(1) .draw { animation-delay: 0.15s; }
+        .ops-step:nth-child(2) .draw { animation-delay: 0.28s; }
+        .ops-step:nth-child(3) .draw { animation-delay: 0.4s; }
+        .ops-step:nth-child(4) .draw { animation-delay: 0.52s; }
+        .ops-step:nth-child(5) .draw { animation-delay: 0.64s; }
+        @keyframes ops-draw {
+          to { stroke-dashoffset: 0; }
+        }
+        @supports not (animation-timeline: view()) {
+          .ops-icon .draw {
+            animation: ops-draw 1s ease forwards;
+          }
+        }
+        .ops-pulse {
+          animation: ops-pulse 2.8s ease-in-out infinite;
+        }
+        @keyframes ops-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(212,165,116,0); }
+          50% { box-shadow: 0 0 0 6px rgba(212,165,116,0.12); }
+        }
+        .ops-label {
+          font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
+          color: var(--land-accent); margin: 0 0 0.35rem; font-weight: 600;
+        }
+        .ops-step h3 {
+          margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 600;
+        }
+        .ops-step p {
+          margin: 0; color: var(--land-muted); font-size: 0.88rem; line-height: 1.45;
+        }
+        .ops-flow-hint {
+          margin: 1.5rem 0 0;
+          font-size: 0.85rem;
+          color: var(--land-muted);
+          max-width: 36rem;
+          line-height: 1.5;
+          opacity: 0;
+          animation: land-section 0.8s ease 0.2s both;
+          animation-timeline: view();
+          animation-range: entry 5% cover 25%;
+        }
+        .feature-row {
+          opacity: 0;
+          transform: translateY(10px);
+          animation: ops-step-in 0.65s ease both;
+          animation-timeline: view();
+          animation-range: entry 5% cover 30%;
+        }
+        .feature-row:nth-child(1) { animation-delay: 0.05s; }
+        .feature-row:nth-child(2) { animation-delay: 0.12s; }
+        .feature-row:nth-child(3) { animation-delay: 0.19s; }
+        .feature-row:nth-child(4) { animation-delay: 0.26s; }
+        @supports not (animation-timeline: view()) {
+          .feature-row { animation: ops-step-in 0.7s ease both; }
+        }
+        .step {
+          opacity: 0;
+          transform: translateY(12px);
+          animation: ops-step-in 0.7s ease both;
+          animation-timeline: view();
+          animation-range: entry 5% cover 30%;
+        }
+        .step:nth-child(1) { animation-delay: 0.05s; }
+        .step:nth-child(2) { animation-delay: 0.15s; }
+        .step:nth-child(3) { animation-delay: 0.25s; }
+        @supports not (animation-timeline: view()) {
+          .step { animation: ops-step-in 0.7s ease both; }
+        }
         .contact-grid {
           display: grid; gap: 2rem;
         }
@@ -287,6 +466,78 @@ export default async function LandingPage({
             <p>Physical counts vs system qty with clear flags for managers and auditors.</p>
           </div>
         </div>
+      </section>
+
+      <section className="landing-section ops-story" id="workflow" aria-labelledby="workflow-heading">
+        <h2 id="workflow-heading">The shift, end to end</h2>
+        <p className="lead">
+          From the table QR to stock that still matches — one continuous loop.
+        </p>
+        <div className="ops-rail">
+          <article className="ops-step">
+            <div className="ops-icon ops-pulse" aria-hidden>
+              <svg viewBox="0 0 24 24">
+                <rect className="draw" x="4" y="4" width="7" height="7" rx="1" />
+                <rect className="draw" x="13" y="4" width="7" height="7" rx="1" />
+                <rect className="draw" x="4" y="13" width="7" height="7" rx="1" />
+                <path className="draw" d="M14 14h2v2h-2zm3 0h3v1h-3zm0 3h3v3h-3zm-3 0h2v3h-2z" />
+              </svg>
+            </div>
+            <p className="ops-label">01 · Guest</p>
+            <h3>Scan QR</h3>
+            <p>Table token opens your branded menu — no app install.</p>
+          </article>
+          <article className="ops-step">
+            <div className="ops-icon" aria-hidden>
+              <svg viewBox="0 0 24 24">
+                <path className="draw" d="M4 6h16M4 12h10M4 18h14" />
+                <circle className="draw" cx="18" cy="12" r="2.5" />
+              </svg>
+            </div>
+            <p className="ops-label">02 · Order</p>
+            <h3>Order at table</h3>
+            <p>Guests build a cart and send it straight to the kitchen.</p>
+          </article>
+          <article className="ops-step">
+            <div className="ops-icon" aria-hidden>
+              <svg viewBox="0 0 24 24">
+                <path className="draw" d="M5 9h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9z" />
+                <path className="draw" d="M8 9V7a4 4 0 0 1 8 0v2" />
+                <path className="draw" d="M9 14h6" />
+              </svg>
+            </div>
+            <p className="ops-label">03 · Kitchen</p>
+            <h3>Ticket on the line</h3>
+            <p>Prep → ready → served, with live status for the floor.</p>
+          </article>
+          <article className="ops-step">
+            <div className="ops-icon" aria-hidden>
+              <svg viewBox="0 0 24 24">
+                <rect className="draw" x="3" y="6" width="18" height="12" rx="2" />
+                <path className="draw" d="M3 10h18" />
+                <path className="draw" d="M7 15h4" />
+              </svg>
+            </div>
+            <p className="ops-label">04 · Pay</p>
+            <h3>Pay & verify</h3>
+            <p>Telebirr or bank proof uploads; staff approve before clearing.</p>
+          </article>
+          <article className="ops-step">
+            <div className="ops-icon" aria-hidden>
+              <svg viewBox="0 0 24 24">
+                <path className="draw" d="M4 19V5M4 19h16" />
+                <path className="draw" d="M8 15v-4M12 15V8M16 15v-6" />
+              </svg>
+            </div>
+            <p className="ops-label">05 · Audit</p>
+            <h3>Stock stays honest</h3>
+            <p>Recipes deduct inventory; counts flag variance for managers.</p>
+          </article>
+        </div>
+        <p className="ops-flow-hint">
+          Each sale writes through to inventory — so the evening count is about the floor,
+          not a spreadsheet guess.
+        </p>
       </section>
 
       <div className="owners-band" id="owners">

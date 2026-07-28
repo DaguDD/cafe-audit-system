@@ -9,7 +9,8 @@ import { Decimal } from "@prisma/client/runtime/library";
 
 export default async function AuditPage() {
   const user = await requireRoles(["admin", "manager", "auditor"]);
-  const threshold = Number(process.env.VARIANCE_THRESHOLD_PCT || 10);
+  const cafeSettings = await prisma.cafeSettings.findUnique({ where: { cafeId: user.cafeId } });
+  const threshold = Number(cafeSettings?.varianceThresholdPct ?? process.env.VARIANCE_THRESHOLD_PCT ?? 10);
   const items = await prisma.inventory.findMany({
     where: { cafeId: user.cafeId, status: "active" },
     orderBy: { name: "asc" },
